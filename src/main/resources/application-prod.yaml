@@ -1,0 +1,14 @@
+api:
+  docs:
+    enabled: false
+
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false
+
+logging:
+  level:
+    root: WARN
+    io.github.liuliu.ordermanagement: INFO
