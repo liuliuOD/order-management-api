@@ -50,10 +50,21 @@ stateDiagram-v2
 ```
 
 ## 5. Business Context & Design Decisions
+### Data Consistency & Architecture
+- **Snapshot Pattern**: `unitPriceSnapshot` and `taxRateSnapshot` are stored on the order at creation time to ensure historical pricing and tax calculations remain immutable.
+- **Soft Deletion**: We adopt a soft-delete strategy for both `User` and `Order` to preserve business record history.
+- **Architectural Flow**: `Controller` -> `Converter` -> `Service` -> `Storage`.
 
-### Data Consistency
-- **Snapshot Pattern**: `unitPriceSnapshot` and `taxRateSnapshot` are stored on the order at creation time to ensure historical pricing and tax calculations remain immutable despite future changes to master data.
-- **Soft Deletion**: We adopt a soft-delete strategy for both `User` and `Order` to preserve business record history while removing active visibility from normal operations.
+## 6. API Compliance Details
+The following endpoints are implemented to fulfill the assignment requirements:
+- `GET /api/product/{product_id}`: Retrieve active product details.
+- `POST /api/order`: Create a new order aggregate (Status: DRAFT).
+- `PATCH /api/order/{order_id}`: Controlled update (only `orderAmount` is mutable in v1).
+- `DELETE /api/order/{order_id}`: Soft delete an order.
+- `DELETE /api/user/{userId}`: Delete User (Soft delete a user and their related order references).
+- `GET /api/order/{userId}`: Get Order by User (Retrieve all active orders for a specific user).
+
+## 7. Operational Readiness
 
 ## 5. Design Concepts & Future Evolution (P2 & P3)
 This section outlines architectural considerations and design patterns planned for future versions, demonstrating the system's readiness for enterprise-scale requirements.
