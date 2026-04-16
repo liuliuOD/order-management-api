@@ -10,6 +10,11 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
+# Custom Feature Switches
+api:
+  docs:
+    enabled: true
+
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: io.github.liuliu.ordermanagement.domain.entity
@@ -21,9 +26,11 @@ mybatis:
 springdoc:
   api-docs:
     path: /api-docs
+    enabled: true
   swagger-ui:
     path: /swagger-ui.html
     url: /openapi.yaml
+    enabled: true
     tags-sorter: alpha
     operations-sorter: alpha
     display-request-duration: true
