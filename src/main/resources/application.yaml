@@ -1,3 +1,36 @@
 spring:
+  threads:
+    virtual:
+      enabled: true
   application:
     name: order-management-api
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/order_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: io.github.liuliu.ordermanagement.domain.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    default-fetch-size: 100
+    default-statement-timeout: 30
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    url: /openapi.yaml
+    tags-sorter: alpha
+    operations-sorter: alpha
+    display-request-duration: true
+  override-with-generic-response: false
+
+logging:
+  level:
+    root: INFO
+    io.github.liuliu.ordermanagement: DEBUG
+    org.springdoc: INFO
