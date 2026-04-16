@@ -3,16 +3,18 @@ info:
   title: Order Management API
   version: 1.0.0
   description: |
-    Enterprise-grade Order Management API for B2B retail supply chain / enterprise workflow systems.
+    Enterprise-grade Order Management API for B2B retail supply chain.
     
-    This API focuses on:
-    - Order lifecycle management (Execution Plane)
-    - Controlled change management and auditability (Control Plane)
-    - Single source of truth via snapshotting (unitPriceSnapshot, taxRateSnapshot)
-    - Scalable calculation strategy per ProductCategory
+    Technical Highlights:
+    - **API Versioning**: Global versioning via `/api/v1` prefix.
+    - **Runtime**: Java 21 with **Virtual Threads** (Project Loom).
+    - **Server**: Jetty.
+    - **Observability**: Full-stack traceability via `X-Trace-Id`.
     
     Calculation Rule:
     `totalCost = orderAmount * unitPriceSnapshot * (1 + taxRateSnapshot)`
+    
+    All timestamps follow **ISO 8601** format (e.g., 2026-04-16T22:30:00Z).
 
 servers:
   - url: http://localhost:8080
@@ -20,80 +22,74 @@ servers:
 
 tags:
   - name: Product
-    description: Product catalog management
   - name: Order
-    description: Order lifecycle and transaction management
   - name: User
-    description: User and reference management
 
 paths:
-  /api/product/{product_id}:
+  /api/v1/product/{product_id}:
     get:
       tags: [Product]
       summary: Get Product by Id
-      description: |
-        Retrieve active product details including current unit price and tax rate.
-        This endpoint is part of the Execution Plane for product discovery.
       operationId: getProductById
       parameters:
         - $ref: '#/components/parameters/ProductId'
       responses:
         '200':
           description: Product found successfully
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Product'
+              schema: {$ref: '#/components/schemas/Product'}
         '404':
-          description: Product not found or soft-deleted
+          description: Product not found
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
 
-  /api/order:
+  /api/v1/order:
     post:
       tags: [Order]
       summary: Create Order
-      description: |
-        Initialize a new order aggregate.
-        Automatically resolves and locks unitPrice and taxRate snapshots from the master data.
-        Initial status is set to DRAFT according to the lifecycle state machine.
       operationId: createOrder
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/CreateOrderRequest'
+            schema: {$ref: '#/components/schemas/CreateOrderRequest'}
       responses:
         '201':
-          description: Order created successfully with snapshot data
+          description: Order created successfully
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
+            Location: {description: URL, schema: {type: string}}
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
+              schema: {$ref: '#/components/schemas/CreateOrderResponse'}
         '400':
-          description: Invalid request payload or validation failure
+          description: Invalid request
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: User or Product not found
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
 
-  /api/order/{order_id}:
+  /api/v1/order/{order_id}:
     patch:
       tags: [Order]
       summary: Patch Order by order_id
       description: |
-        Perform controlled partial updates on an order.
-        v1 strictly allows mutation of 'orderAmount' only.
-        Updates are subject to state-machine rules (only permitted in DRAFT or SUBMITTED states).
+        Perform controlled partial updates (orderAmount only).
+        Updates are subject to state-machine rules.
       operationId: patchOrderById
       parameters:
         - $ref: '#/components/parameters/OrderId'
@@ -101,243 +97,199 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/PatchOrderRequest'
+            schema: {$ref: '#/components/schemas/PatchOrderRequest'}
       responses:
         '200':
-          description: Order updated and totalCost recalculated using snapshots
+          description: Order updated
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
+              schema: {$ref: '#/components/schemas/Order'}
         '400':
-          description: Business rule violation or invalid state transition
+          description: Business rule violation
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Order not found
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
     delete:
       tags: [Order]
       summary: Delete Order by order_id
-      description: |
-        Soft delete an order record.
-        Maintains business history for auditability while removing it from active operations.
       operationId: deleteOrderById
       parameters:
         - $ref: '#/components/parameters/OrderId'
       responses:
         '204':
-          description: Order successfully soft-deleted
+          description: Order deleted
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
         '404':
           description: Order not found
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
 
-  /api/order/{userId}:
+  /api/v1/order/{userId}:
     get:
       tags: [Order]
       summary: Get Order by User
       description: |
-        Retrieve a list of active (non-deleted) orders associated with a specific user.
-        This endpoint fulfills the core business requirement for user order history.
+        Retrieve active orders for a specific user with pagination.
+        Default sorting: **created_at DESC, id DESC** to ensure stability and newest-first experience.
       operationId: getOrdersByUserId
       parameters:
         - $ref: '#/components/parameters/UserId'
+        - name: page
+          in: query
+          description: |
+            Page number (1-indexed). 
+            Offset-based pagination is chosen to support random page access required by business operations.
+          schema: {type: integer, default: 1, minimum: 1}
+        - name: size
+          in: query
+          description: Number of records per page. Limited to 100 to prevent deep-page performance issues.
+          schema: {type: integer, default: 20, minimum: 1, maximum: 100}
       responses:
         '200':
-          description: List of user orders (empty list if none found)
+          description: Paged list of user orders
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
           content:
             application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Order'
+              schema: {$ref: '#/components/schemas/PagedOrderResponse'}
         '404':
           description: User not found
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
 
-  /api/user/{userId}:
+  /api/v1/user/{userId}:
     delete:
       tags: [User]
       summary: Delete User
       description: |
         Soft delete a user record.
-        In compliance with the assignment, all related order references are also soft-deleted.
+        In compliance with the assignment, all related user order references are also soft-deleted 
+        to maintain business record consistency while removing them from active operations.
       operationId: deleteUserById
       parameters:
         - $ref: '#/components/parameters/UserId'
       responses:
         '204':
-          description: User and related orders successfully soft-deleted
+          description: User deleted
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
         '404':
           description: User not found
+          headers:
+            X-Trace-Id: {$ref: '#/components/headers/X-Trace-Id'}
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
 
 components:
+  headers:
+    X-Trace-Id:
+      description: Unique trace ID for correlation.
+      schema: {type: string, format: uuid}
+
   parameters:
-    ProductId:
-      name: product_id
-      in: path
-      required: true
-      schema:
-        type: integer
-        format: int64
-        minimum: 1
-    OrderId:
-      name: order_id
-      in: path
-      required: true
-      schema:
-        type: integer
-        format: int64
-        minimum: 1
-    UserId:
-      name: userId
-      in: path
-      required: true
-      schema:
-        type: integer
-        format: int64
-        minimum: 1
+    ProductId: {name: product_id, in: path, required: true, schema: {type: string, format: uuid}}
+    OrderId: {name: order_id, in: path, required: true, schema: {type: string, format: uuid}}
+    UserId: {name: userId, in: path, required: true, schema: {type: string, format: uuid}}
 
   schemas:
     Product:
       type: object
-      required:
-        - id
-        - productName
-        - unitPrice
+      required: [id, productName, unitPrice]
       properties:
-        id:
-          type: integer
-          format: int64
-        productName:
-          type: string
-        productCategoryId:
-          type: integer
-          format: int64
-        unitPrice:
-          type: number
-          format: decimal
-          description: Current unit price from catalog
-        taxRate:
-          type: number
-          format: decimal
-          description: Resolved tax rate from category (decimal, e.g. 0.05)
+        id: {type: string, format: uuid}
+        productName: {type: string}
+        productCategoryId: {type: string, format: uuid}
+        unitPrice: {type: number}
+        taxRate: {type: number}
+        createdAt: {type: string, format: date-time, example: "2026-04-16T22:30:00Z"}
+        updatedAt: {type: string, format: date-time, example: "2026-04-16T22:30:00Z"}
 
     Order:
       type: object
-      required:
-        - id
-        - userId
-        - productId
-        - orderAmount
-        - totalCost
-        - status
+      required: [id, userId, productId, orderAmount, totalCost, status]
       properties:
-        id:
-          type: integer
-          format: int64
-        userId:
-          type: integer
-          format: int64
-        productId:
-          type: integer
-          format: int64
-        orderAmount:
-          type: integer
-          format: int32
-        unitPriceSnapshot:
-          type: number
-          format: decimal
-          description: Locked price at creation time
-        taxRateSnapshot:
-          type: number
-          format: decimal
-          description: Locked tax rate at creation time
-        totalCost:
-          type: number
-          format: decimal
-          description: Final calculated cost
-        status:
-          $ref: '#/components/schemas/OrderStatus'
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
+        id: {type: string, format: uuid}
+        userId: {type: string, format: uuid}
+        productId: {type: string, format: uuid}
+        orderAmount: {type: integer}
+        unitPriceSnapshot: {type: number}
+        taxRateSnapshot: {type: number}
+        totalCost: {type: number}
+        status: {$ref: '#/components/schemas/OrderStatus'}
+        createdAt: {type: string, format: date-time, example: "2026-04-16T22:30:00Z"}
+        updatedAt: {type: string, format: date-time, example: "2026-04-16T22:30:00Z"}
 
     OrderStatus:
       type: string
       enum: [DRAFT, SUBMITTED, APPROVED, CANCELLED]
-      description: |
-        Lifecycle states:
-        - DRAFT: Initial state, fully editable
-        - SUBMITTED: Locked for review, limited editing
-        - APPROVED: Finalized, no further changes allowed
-        - CANCELLED: Terminal state for aborted orders
+
+    PagedOrderResponse:
+      type: object
+      required: [data, pagination]
+      properties:
+        data: {type: array, items: {$ref: '#/components/schemas/Order'}}
+        pagination: {$ref: '#/components/schemas/PaginationInfo'}
+
+    PaginationInfo:
+      type: object
+      required: [page, size, totalItems, totalPages]
+      properties:
+        page: {type: integer, example: 1}
+        size: {type: integer, example: 20}
+        totalItems: {type: integer, format: int64, example: 100}
+        totalPages: {type: integer, example: 5}
 
     CreateOrderRequest:
       type: object
-      required:
-        - userId
-        - productId
-        - orderAmount
+      required: [userId, productId, orderAmount]
       properties:
-        userId:
-          type: integer
-          format: int64
-        productId:
-          type: integer
-          format: int64
-        orderAmount:
-          type: integer
-          format: int32
-          minimum: 1
+        userId: {type: string, format: uuid}
+        productId: {type: string, format: uuid}
+        orderAmount: {type: integer, minimum: 1}
+
+    CreateOrderResponse:
+      type: object
+      required: [id]
+      properties:
+        id: {type: string, format: uuid}
 
     PatchOrderRequest:
       type: object
-      description: Only orderAmount is allowed to be patched in v1.
       properties:
-        orderAmount:
-          type: integer
-          format: int32
-          minimum: 1
+        orderAmount: {type: integer, minimum: 1}
       additionalProperties: false
 
     ErrorResponse:
       type: object
-      required:
-        - code
-        - message
-        - traceId
+      required: [code, message, traceId]
       properties:
-        code:
-          type: string
-          description: Machine-readable error code (e.g. ERR_RESOURCE_NOT_FOUND)
-        message:
-          type: string
-          description: Human-readable error message
-        traceId:
-          type: string
-          description: Unique request ID for troubleshooting
-        details:
-          type: array
-          items:
-            type: string
-          description: Optional list of detailed errors (e.g. validation errors)
+        code: {type: string}
+        message: {type: string}
+        traceId: {type: string}
+        details: {type: array, items: {$ref: '#/components/schemas/ErrorDetail'}}
+
+    ErrorDetail:
+      type: object
+      required: [message]
+      properties:
+        field: {type: string}
+        message: {type: string}
