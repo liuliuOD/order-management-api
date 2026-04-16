@@ -1,43 +1,52 @@
 # Order Management API
 
 ## 1. Overview
-This is an enterprise-grade Order Management API designed to handle order lifecycles with a focus on data consistency, auditability, and scalability.
+An enterprise-grade Order Management API built with **Spring Boot 3** and **Java 21**, specifically designed for **B2B retail supply chain** scenarios. This system emphasizes data consistency, high-performance concurrency, and professional observability.
 
-## 2. API Design & Compliance Note
-- **Assignment Compliance**: This implementation strictly follows the assignment endpoints:
-  - `GET /api/product/{product_id}`
-  - `POST /api/order`
-  - `PATCH /api/order/{order_id}`
-  - `DELETE /api/order/{order_id}`
-  - `DELETE /api/user/{userId}`
-  - `GET /api/order/{userId}`
-- **Production-Oriented Redesign**: In a production environment, we recommend:
-  - `GET /api/users/{userId}/orders` for querying orders by user.
-  - State transition actions (submit, approve, cancel) should be exposed via command-style endpoints (e.g., `POST /api/orders/{id}:submit`) instead of generic patch.
+## 2. Technical Stack
+- **Runtime**: Java 21 (Long-Term Support)
+- **Concurrency**: **Virtual Threads (Project Loom)** enabled for high-throughput I/O.
+- **Server**: **Jetty** (Optimized for modern cloud-native workloads).
+- **Database**: **PostgreSQL** (Utilizing Writable CTEs for complex transactions).
+- **ORM**: **MyBatis** (For precise control over SQL performance).
+- **Testing**: **Groovy + Spock** (For readable and expressive specifications).
 
-## 3. System Architecture
+## 3. Architecture & API Design
+### System Layers
+`Controller` -> `Converter` -> `Service` -> `Storage` -> `Service` -> `Controller` -> `Converter` -> `Response`
+
+### Key Design Patterns
+- **API Versioning**: Global versioning via `/api/v1` prefix to ensure contract stability.
+- **Data Consistency**:
+  - **Snapshot Pattern**: Locks `unitPrice` and `taxRate` at order creation to preserve historical accuracy.
+  - **Soft Deletion**: Implemented for both Users and Orders to maintain business history.
+- **Pagination**: Nested wrap structure (`pagination` + `data`) with **1-indexed** page numbers and deterministic sorting (**created_at DESC, id DESC**).
+- **Observability**: Full-stack traceability via **`X-Trace-Id`** (exposed in both body and headers).
+
+## 4. System Architecture (Mermaid)
 ```mermaid
 graph TD
     Client[Client / API Consumer] --> Controller[Spring Boot REST API]
     
     subgraph "Application Logic"
-        Controller --> Service[Application Service Layer]
+        Controller --> Converter[Converter Layer]
+        Converter --> Service[Application Service Layer]
         Service --> StateMachine[State Machine & Validation]
         Service --> Calculator[Calculator Strategy]
     end
     
     subgraph "Infrastructure"
-        Service --> DB[(Relational Database)]
+        Service --> Storage[Storage Layer]
+        Storage --> DB[(PostgreSQL)]
     end
     
-    subgraph "Integration Extensions"
-        Service --> Pub[Event Publisher Hook]
-        Service --> Adapter[Tax Provider Adapter]
-        Service --> Sync[Downstream Sync Hook]
+    subgraph "Integration Hooks"
+        Service --> Pub[Event Publisher]
+        Service --> Sync[30-min Data Sync]
     end
 ```
 
-## 4. Order Lifecycle (State Machine)
+## 5. Order Lifecycle (State Machine)
 ```mermaid
 stateDiagram-v2
     [*] --> DRAFT
@@ -49,25 +58,16 @@ stateDiagram-v2
     CANCELLED --> [*] : terminal
 ```
 
-## 5. Business Context & Design Decisions
-### Data Consistency & Architecture
-- **Snapshot Pattern**: `unitPriceSnapshot` and `taxRateSnapshot` are stored on the order at creation time to ensure historical pricing and tax calculations remain immutable.
-- **Soft Deletion**: We adopt a soft-delete strategy for both `User` and `Order` to preserve business record history.
-- **Architectural Flow**: `Controller` -> `Converter` -> `Service` -> `Storage`.
+## 6. Business Context & Design Decisions
+### Data Consistency & History
+- **Single Source of Truth**: The **Snapshot Pattern** ensures that even if a product's price or a category's tax rate changes in the future, historical orders remain immutable and accurate for accounting.
+- **Record Preservation**: We adopt **Soft Deletion** because in enterprise systems, business records (Users/Orders) are rarely hard-purged. They are preserved for auditability and downstream analysis.
 
-## 6. API Compliance Details
-The following endpoints are implemented to fulfill the assignment requirements:
-- `GET /api/product/{product_id}`: Retrieve active product details.
-- `POST /api/order`: Create a new order aggregate (Status: DRAFT).
-- `PATCH /api/order/{order_id}`: Controlled update (only `orderAmount` is mutable in v1).
-- `DELETE /api/order/{order_id}`: Soft delete an order.
-- `DELETE /api/user/{userId}`: Delete User (Soft delete a user and their related order references).
-- `GET /api/order/{userId}`: Get Order by User (Retrieve all active orders for a specific user).
+### Semantic Correctness
+- **Controlled Patch**: Only `orderAmount` is mutable. State transitions (e.g., approval) are guarded by a state machine to prevent illegal workflow jumps.
+- **Explicit Deletion**: Deleting a user triggers a cascade of soft-deletions for their orders, ensuring no orphaned active references remain in the execution plane.
 
-## 7. Operational Readiness
-
-## 5. Design Concepts & Future Evolution (P2 & P3)
-This section outlines architectural considerations and design patterns planned for future versions, demonstrating the system's readiness for enterprise-scale requirements.
+## 7. Design Concepts & Future Evolution (P2 & P3)
 
 ### P2 — Documented Design Concepts
 The following features are designed but intentionally out of scope for the current implementation to focus on core stability.
@@ -87,11 +87,15 @@ Prepared for deeper technical discussion during the interview process.
 - **Supplier Compliance Extension**: Integrating onboarding and compliance checks into the order submission workflow.
 - **Logistics & Shipment Integration**: Extending the order aggregate to handle fulfillment milestones and tracking.
 - **Soft Delete vs Hard Delete Rationale**: Deep dive into business record consistency, data privacy (GDPR), and audit requirements.
+- **Pagination Strategy Evolution**: Why we chose Offset-based pagination for v1 (to support random page access for accounting) and how to transition to Cursor-based (Seek Method) for performance at scale.
 - **Microservices Evolution**: Strategy for decomposing the monolith into event-driven microservices.
 - **Observability & SLO**: Implementing structured logging, distributed tracing (Zipkin/Jaeger), and operational metrics to ensure service reliability.
 
-## 6. Operational Readiness
-The system is built with enterprise observability in mind:
-- **Traceability**: Consistent `traceId` across all API responses.
-- **Error Handling**: A centralized exception hierarchy with standardized error codes.
-- **Metrics**: Ready for instrumentation with metrics for order lifecycle events, transition errors, and downstream delivery performance.
+## 8. API Compliance Details
+Strictly following the assignment requirements while applying RESTful best practices:
+- `GET /api/v1/product/{product_id}`: Retrieve active product details.
+- `POST /api/v1/order`: Create order aggregate (Returns **201 Created** with `id`).
+- `PATCH /api/v1/order/{order_id}`: Controlled update (only `orderAmount` mutable, returns recalculated order).
+- `DELETE /api/v1/order/{order_id}`: Soft delete order record.
+- `DELETE /api/v1/user/{userId}`: Delete User (Soft delete user and cascade soft-delete order references).
+- `GET /api/v1/order/{userId}`: Get Order by User (Paged, newest-first).
