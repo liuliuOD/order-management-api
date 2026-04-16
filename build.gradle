@@ -1,7 +1,9 @@
 plugins {
 	id 'java'
+	id 'groovy'
 	id 'org.springframework.boot' version '4.0.5'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id 'org.openapi.generator' version '7.21.0'
 }
 
 group = 'io.github.liuliu'
@@ -23,21 +25,26 @@ ext {
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
-	implementation 'org.springframework.boot:spring-boot-starter-groovy-templates'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:4.0.1'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.2'
 	implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j'
+	implementation 'com.bucket4j:bucket4j_jdk17-core:8.14.0'
+	implementation 'org.openapitools:jackson-databind-nullable:0.2.10'
+	implementation 'jakarta.annotation:jakarta.annotation-api:3.0.0'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 	runtimeOnly 'org.postgresql:postgresql'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
-	testImplementation 'org.springframework.boot:spring-boot-starter-groovy-templates-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:4.0.1'
+	testImplementation platform('org.spockframework:spock-bom:2.4-M4-groovy-4.0')
+	testImplementation 'org.spockframework:spock-core'
+	testImplementation 'org.spockframework:spock-spring'
+	testImplementation 'org.apache.groovy:groovy:4.0.28'
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
@@ -49,6 +56,63 @@ dependencyManagement {
 	}
 }
 
-tasks.named('test') {
-	useJUnitPlatform()
+openApiGenerate {
+	generatorName = 'spring'
+	inputSpec = "$rootDir/src/main/resources/openapi/api.yaml"
+	outputDir = "$buildDir/generated"
+	apiPackage = 'io.github.liuliu.api'
+	modelPackage = 'io.github.liuliu.model'
+	invokerPackage = 'io.github.liuliu.invoker'
+	configOptions = [
+		useJakartaEe  : 'true',
+		useSpringBoot4: 'true',
+		openApiNullable: 'true',
+		interfaceOnly : 'false',
+		delegatePattern: 'true',
+		useTags       : 'true',
+		dateLibrary   : 'java8',
+		generateSupportingFiles: 'false'
+	]
+}
+
+springBoot {
+	mainClass = 'io.github.liuliu.ordermanagement.OrderManagementApiApplication'
+}
+
+sourceSets {
+	main {
+		java {
+			srcDir "$buildDir/generated/src/main/java"
+		}
+	}
+}
+
+tasks.named('compileJava') {
+	dependsOn tasks.named('openApiGenerate')
+}
+
+tasks.named('openApiGenerate') {
+	dependsOn tasks.named('cleanOpenApiGenerated')
+
+	doLast {
+		def replacedFiles = 0
+		fileTree("$buildDir/generated/src/main/java").matching {
+			include '**/*.java'
+		}.each { file ->
+			def text = file.getText('UTF-8')
+			def updatedText = text.replace('import org.springframework.lang.Nullable;', 'import jakarta.annotation.Nullable;')
+			if (updatedText != text) replacedFiles++
+			text = updatedText
+			file.write(text, 'UTF-8')
+		}
+		println("Patched Nullable import in ${replacedFiles} generated file(s).")
+	}
+}
+
+tasks.register('cleanOpenApiGenerated', Delete) {
+	delete "$buildDir/generated"
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.compilerArgs += ['-Xlint:-deprecation']
 }
