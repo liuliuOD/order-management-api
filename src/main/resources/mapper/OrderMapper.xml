@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.liuliu.ordermanagement.mapper.OrderMapper">
+
+    <resultMap id="OrderMap" type="OrderEntity">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="productId" column="product_id"/>
+        <result property="orderAmount" column="order_amount"/>
+        <result property="unitPriceSnapshot" column="unit_price_snapshot"/>
+        <result property="taxRateSnapshot" column="tax_rate_snapshot"/>
+        <result property="totalCost" column="total_cost"/>
+        <result property="status" column="status"/>
+        <result property="isDeleted" column="is_deleted"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deletedAt" column="deleted_at"/>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO orders (
+            id, user_id, product_id, order_amount, 
+            unit_price_snapshot, tax_rate_snapshot, total_cost, 
+            status, is_deleted, created_at, updated_at
+        ) VALUES (
+            #{id}::uuid, #{userId}, #{productId}, #{orderAmount},
+            #{unitPriceSnapshot}, #{taxRateSnapshot}, #{totalCost}, 
+            #{status}, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <select id="findById" resultMap="OrderMap">
+        SELECT * FROM orders
+        WHERE id = #{id} AND is_deleted = false
+    </select>
+
+    <select id="findByUserIdPaged" resultMap="OrderMap">
+        SELECT * FROM orders
+        WHERE user_id = #{userId} AND is_deleted = false
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByUserId" resultType="long">
+        SELECT count(*) FROM orders 
+        WHERE user_id = #{userId} AND is_deleted = false
+    </select>
+
+    <update id="update">
+        UPDATE orders
+        SET 
+            order_amount = #{orderAmount},
+            total_cost = #{totalCost},
+            status = #{status},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND is_deleted = false
+    </update>
+
+    <update id="softDelete">
+        UPDATE orders
+        SET 
+            is_deleted = true,
+            deleted_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND is_deleted = false
+    </update>
+
+</mapper>

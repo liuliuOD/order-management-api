@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.liuliu.ordermanagement.mapper.ProductMapper">
+
+    <resultMap id="ProductMap" type="ProductEntity">
+        <id property="id" column="id"/>
+        <result property="productCategoryId" column="product_category_id"/>
+        <result property="productName" column="product_name"/>
+        <result property="unitPrice" column="unit_price"/>
+        <result property="isDeleted" column="is_deleted"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="CategoryMap" type="ProductCategoryEntity">
+        <id property="categoryId" column="category_id"/>
+        <result property="categoryName" column="category_name"/>
+        <result property="taxRate" column="tax_rate"/>
+        <result property="calculationType" column="calculation_type"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="findById" resultMap="ProductMap">
+        SELECT * FROM products WHERE id = #{id} AND is_deleted = false
+    </select>
+
+    <select id="findCategoryById" resultMap="CategoryMap">
+        SELECT * FROM product_categories WHERE category_id = #{categoryId}
+    </select>
+
+    <select id="findProductWithCategory" resultMap="ProductMap">
+        SELECT p.* FROM products p
+        WHERE p.id = #{id} AND p.is_deleted = false
+    </select>
+
+    <insert id="insertProduct">
+        INSERT INTO products (id, product_category_id, product_name, unit_price, is_deleted, created_at, updated_at)
+        VALUES (#{id}, #{productCategoryId}, #{productName}, #{unitPrice}, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    </insert>
+
+    <insert id="insertCategory">
+        INSERT INTO product_categories (category_id, category_name, tax_rate, calculation_type, created_at, updated_at)
+        VALUES (#{categoryId}, #{categoryName}, #{taxRate}, #{calculationType}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    </insert>
+
+</mapper>

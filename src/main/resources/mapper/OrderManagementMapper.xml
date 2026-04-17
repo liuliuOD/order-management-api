@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.liuliu.ordermanagement.mapper.OrderManagementMapper">
+
+    <update id="deleteUserAndRelatedOrders">
+        WITH deleted_user AS (
+            UPDATE users 
+            SET is_deleted = true, 
+                deleted_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = #{userId} AND is_deleted = false
+            RETURNING id
+        )
+        UPDATE orders 
+        SET is_deleted = true, 
+            deleted_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id IN (SELECT id FROM deleted_user)
+    </update>
+
+</mapper>
