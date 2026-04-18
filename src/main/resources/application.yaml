@@ -5,7 +5,7 @@ spring:
   application:
     name: order-management-api
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/order_db}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/order_management}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
@@ -16,8 +16,9 @@ api:
     enabled: true
 
 mybatis:
-  mapper-locations: classpath:mapper/*.xml
-  type-aliases-package: io.github.liuliu.ordermanagement.domain.entity
+  mapper-locations: classpath:/mapper/*.xml
+  type-aliases-package: io.github.liuliu.ordermanagement.domain.entity,io.github.liuliu.ordermanagement.domain.dto
+  type-handlers-package: io.github.liuliu.ordermanagement.domain.typehandler
   configuration:
     map-underscore-to-camel-case: true
     default-fetch-size: 100
@@ -37,7 +38,20 @@ springdoc:
   override-with-generic-response: false
 
 logging:
+#  pattern:
+#    correlation: "[req=%X{requestId:-},trace=%X{traceId:-},span=%X{spanId:-}] "
+  include-application-name: false
+  structured:
+    format:
+      console: ecs
   level:
     root: INFO
     io.github.liuliu.ordermanagement: DEBUG
     org.springdoc: INFO
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0   # dev 先全開，prod 再調整
+    propagation:
+      type: W3C

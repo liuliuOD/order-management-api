@@ -1,3 +1,6 @@
+-- Create UUID extension if not exists
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- 1. Product Categories
 CREATE TABLE product_categories (
     category_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
