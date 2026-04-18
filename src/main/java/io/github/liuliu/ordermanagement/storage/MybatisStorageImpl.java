@@ -17,7 +17,7 @@ import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
-public class StorageImpl implements Storage {
+public class MybatisStorageImpl implements Storage {
 
     private final UserMapper userMapper;
     private final ProductMapper productMapper;
