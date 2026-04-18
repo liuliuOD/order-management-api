@@ -1,7 +1,7 @@
 package io.github.liuliu.ordermanagement.service;
 
-import io.github.liuliu.model.Product;
-import io.github.liuliu.ordermanagement.converter.ProductConverter;
+import io.github.liuliu.ordermanagement.domain.dto.GetProductByIdQueryDto;
+import io.github.liuliu.ordermanagement.domain.dto.ProductDto;
 import io.github.liuliu.ordermanagement.domain.entity.ProductCategoryEntity;
 import io.github.liuliu.ordermanagement.domain.entity.ProductEntity;
 import io.github.liuliu.ordermanagement.exception.ResourceNotFoundException;
@@ -9,24 +9,25 @@ import io.github.liuliu.ordermanagement.storage.Storage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
-
 @Service
 @RequiredArgsConstructor
 public class ProductService {
 
     private final Storage storage;
-    private final ProductConverter productConverter;
 
-    public Product getProductById(UUID id) {
-        ProductEntity productEntity = storage.findProductById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));
+    public ProductDto getProductById(GetProductByIdQueryDto query) {
+        ProductEntity productEntity = storage.findProductById(query.getProductId())
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + query.getProductId()));
 
         ProductCategoryEntity categoryEntity = storage.findCategoryById(productEntity.getProductCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + productEntity.getProductCategoryId()));
 
-        Product product = productConverter.toDto(productEntity);
-        product.setTaxRate(categoryEntity.getTaxRate());
-        return product;
+        return ProductDto.builder()
+                .id(productEntity.getId())
+                .productName(productEntity.getProductName())
+                .productCategoryId(productEntity.getProductCategoryId())
+                .unitPrice(productEntity.getUnitPrice())
+                .taxRate(categoryEntity.getTaxRate())
+                .build();
     }
 }

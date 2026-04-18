@@ -1,22 +1,31 @@
 package io.github.liuliu.ordermanagement.converter;
 
 import io.github.liuliu.model.Product;
-import io.github.liuliu.ordermanagement.domain.entity.ProductEntity;
+import io.github.liuliu.ordermanagement.domain.dto.GetProductByIdQueryDto;
+import io.github.liuliu.ordermanagement.domain.dto.ProductDto;
 import org.springframework.stereotype.Component;
+
+import java.util.UUID;
 
 @Component
 public class ProductConverter {
 
-    public Product toDto(ProductEntity entity) {
-        if (entity == null) {
+    public GetProductByIdQueryDto toGetProductByIdQueryDto(UUID productId) {
+        return GetProductByIdQueryDto.builder()
+                .productId(productId)
+                .build();
+    }
+
+    public Product toProductResponse(ProductDto dto) {
+        if (dto == null) {
             return null;
         }
-        Product dto = new Product();
-        dto.setId(entity.getId());
-        dto.setProductName(entity.getProductName());
-        dto.setProductCategoryId(entity.getProductCategoryId());
-        dto.setUnitPrice(entity.getUnitPrice());
-        // taxRate will be populated by the service layer or a joint entity in future
-        return dto;
+        Product response = new Product();
+        response.setId(dto.getId());
+        response.setProductName(dto.getProductName());
+        response.setProductCategoryId(dto.getProductCategoryId());
+        response.setUnitPrice(dto.getUnitPrice());
+        response.setTaxRate(dto.getTaxRate());
+        return response;
     }
 }
