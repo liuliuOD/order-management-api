@@ -82,6 +82,13 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: Conflict with current resource state or request data
+          headers:
+            X-Request-Id: {$ref: '#/components/headers/X-Request-Id'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
 
   /api/v1/order/{order_id}:
     patch:
@@ -115,6 +122,13 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '404':
           description: Order not found
+          headers:
+            X-Request-Id: {$ref: '#/components/headers/X-Request-Id'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: Conflict with current resource state or request data
           headers:
             X-Request-Id: {$ref: '#/components/headers/X-Request-Id'}
           content:
@@ -225,15 +239,15 @@ components:
 
     Order:
       type: object
-      required: [id, userId, productId, orderAmount, totalCost, status, createdAt, updatedAt]
+      required: [id, userId, productId, orderAmount, unitPrice, taxRate, totalCost, status, createdAt, updatedAt]
       properties:
         id: {type: string, format: uuid}
         userId: {type: string, format: uuid}
         productId: {type: string, format: uuid}
         orderAmount: {type: integer}
-        unitPriceSnapshot: {type: number}
-        taxRateSnapshot: {type: number}
-        totalCost: {type: number}
+        unitPrice: {type: number, minimum: 0, multipleOf: 0.0001, example: 0.0001}
+        taxRate: {type: number, minimum: 0, multipleOf: 0.0001, example: 0.0001}
+        totalCost: {type: number, minimum: 0, multipleOf: 0.0001, example: 0.0001}
         status: {$ref: '#/components/schemas/OrderStatus'}
         createdAt: {type: string, format: date-time, example: "2026-04-16T22:30:00Z"}
         updatedAt: {type: string, format: date-time, example: "2026-04-16T22:30:00Z"}
@@ -260,11 +274,13 @@ components:
 
     CreateOrderRequest:
       type: object
-      required: [userId, productId, orderAmount]
+      required: [userId, productId, orderAmount, expectedUnitPrice, expectedTaxRate]
       properties:
         userId: {type: string, format: uuid}
         productId: {type: string, format: uuid}
         orderAmount: {type: integer, minimum: 1}
+        expectedUnitPrice: {type: number, minimum: 0, multipleOf: 0.0001, example: 0.0001}
+        expectedTaxRate: {type: number, minimum: 0, multipleOf: 0.0001, example: 0.0001}
 
     CreateOrderResponse:
       type: object
@@ -274,10 +290,11 @@ components:
 
     PatchOrderRequest:
       type: object
-      required: [orderAmount]
+      required: [orderAmount, expectedUnitPrice, expectedTaxRate]
       properties:
         orderAmount: {type: integer, minimum: 1}
-      additionalProperties: false
+        expectedUnitPrice: {type: number, minimum: 0, multipleOf: 0.0001, example: 0.0001}
+        expectedTaxRate: {type: number, minimum: 0, multipleOf: 0.0001, example: 0.0001}
 
     ErrorResponse:
       type: object
