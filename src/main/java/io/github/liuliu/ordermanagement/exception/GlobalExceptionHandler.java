@@ -1,29 +1,25 @@
 package io.github.liuliu.ordermanagement.exception;
 
-import tools.jackson.core.JacksonException;
 import io.github.liuliu.model.ErrorDetail;
 import io.github.liuliu.model.ErrorResponse;
 import io.github.liuliu.ordermanagement.filter.RequestIdFilter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.dao.*;
 import org.springframework.http.HttpHeaders;
-import org.springframework.dao.CannotAcquireLockException;
-import org.springframework.dao.DataAccessException;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.DuplicateKeyException;
-import org.springframework.dao.TransientDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.transaction.TransactionSystemException;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.exc.InvalidFormatException;
 import tools.jackson.databind.exc.MismatchedInputException;
 
@@ -38,22 +34,20 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex) {
-        return createResponse(ex.getErrorCode(), ex.getMessage(), HttpStatus.NOT_FOUND, null);
+        return createResponse(ex.getErrorCode(), ex.getMessage());
     }
 
     @ExceptionHandler(BusinessRuleException.class)
     public ResponseEntity<ErrorResponse> handleBusinessRule(BusinessRuleException ex) {
-        return createResponse(ex.getErrorCode(), ex.getMessage(), HttpStatus.CONFLICT, null);
+        return createResponse(ex.getErrorCode(), ex.getMessage());
     }
 
     @ExceptionHandler(DuplicateKeyException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateKey(DuplicateKeyException ex) {
         log.warn("DuplicateKeyException occurred", ex);
         return createResponse(
-                ErrorCode.BUSINESS_RULE_VIOLATION,
-                "Request conflicts with existing data",
-                HttpStatus.CONFLICT,
-                null
+                ErrorCode.CONFLICT,
+                "Request conflicts with existing data"
         );
     }
 
@@ -61,10 +55,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         log.warn("DataIntegrityViolationException occurred", ex);
         return createResponse(
-                ErrorCode.BUSINESS_RULE_VIOLATION,
-                "Request violates data integrity constraints",
-                HttpStatus.CONFLICT,
-                null
+                ErrorCode.CONFLICT,
+                "Request violates data integrity constraints"
         );
     }
 
@@ -72,10 +64,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleCannotAcquireLock(CannotAcquireLockException ex) {
         log.warn("CannotAcquireLockException occurred", ex);
         return createResponse(
-                ErrorCode.BUSINESS_RULE_VIOLATION,
-                "Resource is currently busy, please retry later",
-                HttpStatus.CONFLICT,
-                null
+                ErrorCode.CONFLICT,
+                "Resource is currently busy, please retry later"
         );
     }
 
@@ -95,9 +85,7 @@ public class GlobalExceptionHandler {
         log.error("TransactionSystemException occurred", ex);
         return createResponse(
                 ErrorCode.INTERNAL_SERVER_ERROR,
-                "Transaction failed unexpectedly",
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                null
+                "Transaction failed unexpectedly"
         );
     }
 
@@ -106,9 +94,7 @@ public class GlobalExceptionHandler {
         log.error("DataAccessException occurred", ex);
         return createResponse(
                 ErrorCode.INTERNAL_SERVER_ERROR,
-                "Database operation failed",
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                null
+                "Database operation failed"
         );
     }
 
@@ -124,7 +110,7 @@ public class GlobalExceptionHandler {
                 })
                 .collect(Collectors.toList());
 
-        return createResponse(ErrorCode.VALIDATION_FAILED, "Validation failed", HttpStatus.BAD_REQUEST, details);
+        return createResponse(ErrorCode.VALIDATION_FAILED, "Validation failed", null, details);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -139,7 +125,7 @@ public class GlobalExceptionHandler {
         return createResponse(
                 ErrorCode.VALIDATION_FAILED,
                 "Validation failed",
-                HttpStatus.BAD_REQUEST,
+                null,
                 List.of(detail)
         );
     }
@@ -148,9 +134,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleHttpMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
         return createResponse(
                 ErrorCode.UNSUPPORTED_MEDIA_TYPE,
-                "Content-Type is not supported",
-                HttpStatus.UNSUPPORTED_MEDIA_TYPE,
-                null
+                "Content-Type is not supported"
         );
     }
 
@@ -163,7 +147,7 @@ public class GlobalExceptionHandler {
         return createResponse(
                 ErrorCode.INVALID_REQUEST_BODY,
                 "Request body is missing or malformed",
-                HttpStatus.BAD_REQUEST,
+                null,
                 details
         );
     }
@@ -171,7 +155,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex) {
         log.error("Unhandled exception occurred with exception: {}", ex.getClass().getName(), ex);
-        return createResponse(ErrorCode.INTERNAL_SERVER_ERROR, "An unexpected error occurred", HttpStatus.INTERNAL_SERVER_ERROR, null);
+        return createResponse(ErrorCode.INTERNAL_SERVER_ERROR, "An unexpected error occurred", null, null);
     }
 
     private List<ErrorDetail> extractHttpMessageNotReadableDetails(HttpMessageNotReadableException ex) {
@@ -220,7 +204,11 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining("."));
     }
 
-    private ResponseEntity<ErrorResponse> createResponse(ErrorCode code, String message, HttpStatus status, List<ErrorDetail> details) {
+    private ResponseEntity<ErrorResponse> createResponse(ErrorCode code, String message) {
+        return createResponse(code, message, null, null);
+    }
+
+    private ResponseEntity<ErrorResponse> createResponse(@NonNull ErrorCode code, @NonNull String message, HttpStatus status, List<ErrorDetail> details) {
         String requestId = resolveRequestId();
 
         ErrorResponse response = new ErrorResponse();
@@ -232,7 +220,8 @@ public class GlobalExceptionHandler {
         HttpHeaders headers = new HttpHeaders();
         headers.set(TRACE_HEADER, requestId);
 
-        return new ResponseEntity<>(response, headers, status);
+        HttpStatus resolvedStatus = status != null ? status : code.getHttpStatus();
+        return new ResponseEntity<>(response, headers, resolvedStatus);
     }
 
     private String resolveRequestId() {
