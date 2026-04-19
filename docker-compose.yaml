@@ -19,5 +19,14 @@ services:
       timeout: 5s
       retries: 5
 
+  lgtm:
+    image: grafana/otel-lgtm:latest
+    container_name: order-management-lgtm
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+      - "4317:4317"
+      - "4318:4318"
+
 volumes:
   postgres_data:
