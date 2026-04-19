@@ -12,7 +12,7 @@ import java.util.UUID;
 @Mapper
 public interface OrderMapper {
 
-    void insert(OrderEntity order);
+    Optional<OrderEntity> insertAndReturn(OrderEntity order);
 
     Optional<OrderEntity> findById(@Param("id") UUID id);
 
@@ -30,10 +30,10 @@ public interface OrderMapper {
      */
     long countByUserId(@Param("userId") UUID userId);
 
-    void update(OrderEntity order);
+    Optional<OrderEntity> update(OrderEntity order);
 
     /**
      * Soft deletes an order by ID.
      */
-    void softDelete(@Param("id") UUID id);
+    Optional<OrderEntity> softDeleteAndReturn(@Param("id") UUID id);
 }

@@ -13,6 +13,7 @@ import io.github.liuliu.ordermanagement.domain.entity.ProductCategoryEntity;
 import io.github.liuliu.ordermanagement.domain.entity.ProductEntity;
 import io.github.liuliu.ordermanagement.domain.entity.UserEntity;
 import io.github.liuliu.ordermanagement.domain.enumtype.OrderState;
+import io.github.liuliu.ordermanagement.exception.ApiException;
 import io.github.liuliu.ordermanagement.exception.BusinessRuleException;
 import io.github.liuliu.ordermanagement.exception.ResourceNotFoundException;
 import io.github.liuliu.ordermanagement.storage.Storage;
@@ -95,20 +96,13 @@ public class OrderService {
             order.setTotalCost(totalCost);
         }
 
-        storage.updateOrder(order);
-        return toOrderDto(order);
-    }
-
-    @Transactional
-    public void deleteOrder(UUID orderId) {
-        storage.findOrderById(orderId)
+        final OrderEntity updatedOrder = storage.updateOrder(order)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
-        storage.softDeleteOrder(orderId);
+        return toOrderDto(updatedOrder);
     }
 
-    public OrderDto getOrderById(UUID orderId) {
-        return storage.findOrderById(orderId)
-                .map(this::toOrderDto)
+    public void deleteOrder(UUID orderId) {
+        storage.softDeleteOrder(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
     }
 

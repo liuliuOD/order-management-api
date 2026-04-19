@@ -24,9 +24,9 @@ public interface Storage {
     Optional<ProductEntity> findProductForOrder(UUID id);
 
     // Order Operations
-    void saveOrder(OrderEntity order);
+    Optional<OrderEntity> saveOrder(OrderEntity order);
     Optional<OrderEntity> findOrderById(UUID id);
     OrderPagedResult findOrdersByUserIdPaged(UUID userId, int offset, int limit);
-    void updateOrder(OrderEntity order);
-    void softDeleteOrder(UUID id);
+    Optional<OrderEntity> updateOrder(OrderEntity order);
+    Optional<OrderEntity> softDeleteOrder(UUID id);
 }

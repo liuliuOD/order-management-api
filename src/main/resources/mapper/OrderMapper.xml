@@ -17,32 +17,40 @@
         <result property="deletedAt" column="deleted_at"/>
     </resultMap>
 
-    <insert id="insert">
+    <sql id="selectForOrderMap">
+        id, user_id, product_id, order_amount, unit_price_snapshot, tax_rate_snapshot,
+        total_cost, status, is_deleted, created_at, updated_at, deleted_at
+    </sql>
+
+    <select id="insertAndReturn" affectData="true" flushCache="true">
         INSERT INTO orders (
             id, user_id, product_id, order_amount, 
             unit_price_snapshot, tax_rate_snapshot, total_cost, 
             status, is_deleted, created_at, updated_at
         ) VALUES (
-            #{id}::uuid, #{userId}, #{productId}, #{orderAmount},
+            #{id}, #{userId}, #{productId}, #{orderAmount},
             #{unitPriceSnapshot}, #{taxRateSnapshot}, #{totalCost}, 
             #{status}, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
-    </insert>
+        RETURNING <include refid="selectForOrderMap"/>
+    </select>
 
     <select id="findById" resultMap="OrderMap">
-        SELECT * FROM orders
+        SELECT <include refid="selectForOrderMap"/>
+        FROM orders
         WHERE id = #{id} AND is_deleted = false
     </select>
 
     <select id="findByUserIdPaged" resultMap="OrderMap">
-        SELECT * FROM orders
+        SELECT <include refid="selectForOrderMap"/>
+        FROM orders
         WHERE user_id = #{userId} AND is_deleted = false
         ORDER BY created_at DESC, id DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
     <select id="countByUserId" resultType="long">
-        SELECT count(*) FROM orders 
+        SELECT count(1) FROM orders
         WHERE user_id = #{userId} AND is_deleted = false
     </select>
 
@@ -54,15 +62,17 @@
             status = #{status},
             updated_at = CURRENT_TIMESTAMP
         WHERE id = #{id} AND is_deleted = false
+        RETURNING <include refid="selectForOrderMap"/>
     </update>
 
-    <update id="softDelete">
+    <select id="softDeleteAndReturn" affectData="true" flushCache="true">
         UPDATE orders
         SET 
             is_deleted = true,
             deleted_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = #{id} AND is_deleted = false
-    </update>
+        RETURNING <include refid="selectForOrderMap"/>
+    </select>
 
 </mapper>

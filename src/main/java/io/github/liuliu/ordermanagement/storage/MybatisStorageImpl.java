@@ -5,6 +5,7 @@ import io.github.liuliu.ordermanagement.domain.entity.OrderEntity;
 import io.github.liuliu.ordermanagement.domain.entity.ProductCategoryEntity;
 import io.github.liuliu.ordermanagement.domain.entity.ProductEntity;
 import io.github.liuliu.ordermanagement.domain.entity.UserEntity;
+import io.github.liuliu.ordermanagement.exception.ResourceNotFoundException;
 import io.github.liuliu.ordermanagement.mapper.OrderManagementMapper;
 import io.github.liuliu.ordermanagement.mapper.OrderMapper;
 import io.github.liuliu.ordermanagement.mapper.ProductMapper;
@@ -50,8 +51,8 @@ public class MybatisStorageImpl implements Storage {
     }
 
     @Override
-    public void saveOrder(OrderEntity order) {
-        orderMapper.insert(order);
+    public Optional<OrderEntity> saveOrder(OrderEntity order) {
+        return orderMapper.insertAndReturn(order);
     }
 
     @Override
@@ -69,12 +70,12 @@ public class MybatisStorageImpl implements Storage {
     }
 
     @Override
-    public void updateOrder(OrderEntity order) {
-        orderMapper.update(order);
+    public Optional<OrderEntity> updateOrder(OrderEntity order) {
+        return orderMapper.update(order);
     }
 
     @Override
-    public void softDeleteOrder(UUID id) {
-        orderMapper.softDelete(id);
+    public Optional<OrderEntity> softDeleteOrder(UUID id) {
+        return orderMapper.softDeleteAndReturn(id);
     }
 }

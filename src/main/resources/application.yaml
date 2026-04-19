@@ -1,4 +1,6 @@
 spring:
+  profiles:
+    active: local
   threads:
     virtual:
       enabled: true
@@ -13,7 +15,7 @@ spring:
 # Custom Feature Switches
 api:
   docs:
-    enabled: true
+    enabled: false
 
 mybatis:
   mapper-locations: classpath:/mapper/*.xml
@@ -26,16 +28,21 @@ mybatis:
 
 springdoc:
   api-docs:
+    enabled: false
     path: /api-docs
-    enabled: true
   swagger-ui:
+    enabled: false
     path: /swagger-ui.html
     url: /openapi.yaml
-    enabled: true
     tags-sorter: alpha
     operations-sorter: alpha
     display-request-duration: true
   override-with-generic-response: false
+
+server:
+  jetty:
+    accesslog:
+      enabled: true
 
 logging:
 #  pattern:
@@ -49,9 +56,31 @@ logging:
     io.github.liuliu.ordermanagement: DEBUG
     org.springdoc: INFO
 
+observability:
+  otlp:
+    base-url: ${OBSERVABILITY_OTLP_BASE_URL:http://localhost:4318}
+
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,loggers
   tracing:
     sampling:
-      probability: 1.0   # dev 先全開，prod 再調整
+      probability: 0.1   # prod 只追蹤少量
     propagation:
       type: W3C
+  otlp:
+    metrics:
+      export:
+        url: ${observability.otlp.base-url}/v1/metrics
+  opentelemetry:
+    logging:
+      export:
+        otlp:
+          enabled: false
+          endpoint: ${observability.otlp.base-url}/v1/logs
+    tracing:
+      export:
+        otlp:
+          endpoint: ${observability.otlp.base-url}/v1/traces

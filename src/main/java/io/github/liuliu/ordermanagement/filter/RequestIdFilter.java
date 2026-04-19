@@ -19,6 +19,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
 
     public static final String HEADER_NAME = "X-Request-Id";
     public static final String MDC_KEY = "requestId";
+    public static final String REQUEST_ATTR_KEY = "requestId";
 
     @Override
     protected void doFilterInternal(
@@ -32,11 +33,15 @@ public class RequestIdFilter extends OncePerRequestFilter {
         }
 
         MDC.put(MDC_KEY, requestId);
+        request.setAttribute(REQUEST_ATTR_KEY, requestId);
         response.setHeader(HEADER_NAME, requestId);
 
         try {
             filterChain.doFilter(request, response);
         } finally {
+            // Ensure the final response always contains request id header,
+            // even if downstream error handling rewrites headers.
+            response.setHeader(HEADER_NAME, requestId);
             MDC.remove(MDC_KEY);
         }
     }

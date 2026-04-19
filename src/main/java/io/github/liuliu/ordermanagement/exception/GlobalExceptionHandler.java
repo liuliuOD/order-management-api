@@ -7,9 +7,15 @@ import io.github.liuliu.ordermanagement.filter.RequestIdFilter;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.transaction.TransactionSystemException;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -37,7 +43,73 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessRuleException.class)
     public ResponseEntity<ErrorResponse> handleBusinessRule(BusinessRuleException ex) {
-        return createResponse(ex.getErrorCode(), ex.getMessage(), HttpStatus.BAD_REQUEST, null);
+        return createResponse(ex.getErrorCode(), ex.getMessage(), HttpStatus.CONFLICT, null);
+    }
+
+    @ExceptionHandler(DuplicateKeyException.class)
+    public ResponseEntity<ErrorResponse> handleDuplicateKey(DuplicateKeyException ex) {
+        log.warn("DuplicateKeyException occurred", ex);
+        return createResponse(
+                ErrorCode.BUSINESS_RULE_VIOLATION,
+                "Request conflicts with existing data",
+                HttpStatus.CONFLICT,
+                null
+        );
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.warn("DataIntegrityViolationException occurred", ex);
+        return createResponse(
+                ErrorCode.BUSINESS_RULE_VIOLATION,
+                "Request violates data integrity constraints",
+                HttpStatus.CONFLICT,
+                null
+        );
+    }
+
+    @ExceptionHandler(CannotAcquireLockException.class)
+    public ResponseEntity<ErrorResponse> handleCannotAcquireLock(CannotAcquireLockException ex) {
+        log.warn("CannotAcquireLockException occurred", ex);
+        return createResponse(
+                ErrorCode.BUSINESS_RULE_VIOLATION,
+                "Resource is currently busy, please retry later",
+                HttpStatus.CONFLICT,
+                null
+        );
+    }
+
+    @ExceptionHandler(TransientDataAccessException.class)
+    public ResponseEntity<ErrorResponse> handleTransientDataAccess(TransientDataAccessException ex) {
+        log.error("TransientDataAccessException occurred", ex);
+        return createResponse(
+                ErrorCode.INTERNAL_SERVER_ERROR,
+                "Temporary database error occurred, please retry later",
+                HttpStatus.SERVICE_UNAVAILABLE,
+                null
+        );
+    }
+
+    @ExceptionHandler(TransactionSystemException.class)
+    public ResponseEntity<ErrorResponse> handleTransactionSystem(TransactionSystemException ex) {
+        log.error("TransactionSystemException occurred", ex);
+        return createResponse(
+                ErrorCode.INTERNAL_SERVER_ERROR,
+                "Transaction failed unexpectedly",
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                null
+        );
+    }
+
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<ErrorResponse> handleDataAccess(DataAccessException ex) {
+        log.error("DataAccessException occurred", ex);
+        return createResponse(
+                ErrorCode.INTERNAL_SERVER_ERROR,
+                "Database operation failed",
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                null
+        );
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
