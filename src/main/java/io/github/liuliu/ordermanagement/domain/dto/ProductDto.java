@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Data
@@ -18,4 +19,6 @@ public class ProductDto {
     private UUID productCategoryId;
     private BigDecimal unitPrice;
     private BigDecimal taxRate;
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
 }

@@ -26,6 +26,8 @@ public class ProductConverter {
         response.setProductCategoryId(dto.getProductCategoryId());
         response.setUnitPrice(dto.getUnitPrice());
         response.setTaxRate(dto.getTaxRate());
+        response.setCreatedAt(dto.getCreatedAt());
+        response.setUpdatedAt(dto.getUpdatedAt());
         return response;
     }
 }

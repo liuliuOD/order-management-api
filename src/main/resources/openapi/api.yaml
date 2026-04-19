@@ -213,7 +213,7 @@ components:
   schemas:
     Product:
       type: object
-      required: [id, productName, unitPrice]
+      required: [id, productName, productCategoryId, unitPrice, taxRate, createdAt, updatedAt]
       properties:
         id: {type: string, format: uuid}
         productName: {type: string}
@@ -225,7 +225,7 @@ components:
 
     Order:
       type: object
-      required: [id, userId, productId, orderAmount, totalCost, status]
+      required: [id, userId, productId, orderAmount, totalCost, status, createdAt, updatedAt]
       properties:
         id: {type: string, format: uuid}
         userId: {type: string, format: uuid}
@@ -274,6 +274,7 @@ components:
 
     PatchOrderRequest:
       type: object
+      required: [orderAmount]
       properties:
         orderAmount: {type: integer, minimum: 1}
       additionalProperties: false
@@ -289,7 +290,7 @@ components:
 
     ErrorDetail:
       type: object
-      required: [message]
+      required: [field, message]
       properties:
         field: {type: string}
         message: {type: string}
