@@ -2,7 +2,6 @@ package io.github.liuliu.ordermanagement.storage;
 
 import io.github.liuliu.ordermanagement.domain.dto.OrderPagedResult;
 import io.github.liuliu.ordermanagement.domain.entity.OrderEntity;
-import io.github.liuliu.ordermanagement.domain.entity.ProductCategoryEntity;
 import io.github.liuliu.ordermanagement.domain.entity.ProductEntity;
 import io.github.liuliu.ordermanagement.domain.entity.UserEntity;
 import io.github.liuliu.ordermanagement.domain.enumtype.OrderUpdateCheckResult;
@@ -18,11 +17,9 @@ import java.util.UUID;
 public class MybatisStorageImpl implements Storage {
 
     private final UserMapper userMapper;
-    private final ProductMapper productMapper;
     private final OrderMapper orderMapper;
     private final OrderManagementMapper orderManagementMapper;
     private final CommonMapper commonMapper;
-    private final ProductCategoryMapper productCategoryMapper;
     private final ProductManagementMapper productManagementMapper;
 
     @Override
