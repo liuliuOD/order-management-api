@@ -36,6 +36,7 @@ dependencies {
 	implementation 'com.bucket4j:bucket4j_jdk17-core:8.14.0'
 	implementation 'org.openapitools:jackson-databind-nullable:0.2.10'
 	implementation 'jakarta.annotation:jakarta.annotation-api:3.0.0'
+	implementation 'org.springframework.boot:spring-boot-starter-aspectj'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 	runtimeOnly 'org.postgresql:postgresql'
