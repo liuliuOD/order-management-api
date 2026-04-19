@@ -9,10 +9,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Mapper
-public interface ProductMapper {
+public interface ProductCategoryMapper {
 
-    Optional<ProductEntity> findById(@Param("id") UUID id);
+    Optional<ProductCategoryEntity> findById(@Param("categoryId") UUID categoryId);
 
     // only for unittest now
-    Optional<ProductEntity> insertProduct(ProductEntity product);
+    void insertCategory(ProductCategoryEntity category);
 }

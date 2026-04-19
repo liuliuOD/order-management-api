@@ -19,7 +19,7 @@ api:
 
 mybatis:
   mapper-locations: classpath:/mapper/*.xml
-  type-aliases-package: io.github.liuliu.ordermanagement.domain.entity,io.github.liuliu.ordermanagement.domain.dto
+  type-aliases-package: io.github.liuliu.ordermanagement.domain.entity,io.github.liuliu.ordermanagement.domain.dto,io.github.liuliu.ordermanagement.domain.enumtype
   type-handlers-package: io.github.liuliu.ordermanagement.domain.typehandler
   configuration:
     map-underscore-to-camel-case: true

@@ -12,9 +12,10 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
+@Alias("OrderEntity")
 public class OrderEntity {
     private UUID id;
     private UUID userId;

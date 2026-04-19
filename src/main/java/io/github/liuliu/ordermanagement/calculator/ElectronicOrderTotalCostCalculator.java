@@ -10,9 +10,11 @@ import java.math.RoundingMode;
  * Default implementation of order cost calculation.
  */
 @Component
-public class DefaultOrderTotalCostCalculator implements OrderTotalCostCalculator {
+public class ElectronicOrderTotalCostCalculator implements OrderTotalCostCalculator {
 
     private static final int MONEY_SCALE = 4;
+
+    private final CalculationType calculationType = CalculationType.ELECTRONICS;
 
     @Override
     public BigDecimal calculate(Integer orderAmount, BigDecimal unitPriceSnapshot, BigDecimal taxRateSnapshot) {
@@ -29,7 +31,7 @@ public class DefaultOrderTotalCostCalculator implements OrderTotalCostCalculator
     }
 
     @Override
-    public boolean supports(CalculationType type) {
-        return CalculationType.DEFAULT.equals(type) || type == null;
+    public boolean supports(CalculationType targetType) {
+        return calculationType.equals(targetType) || targetType == null;
     }
 }

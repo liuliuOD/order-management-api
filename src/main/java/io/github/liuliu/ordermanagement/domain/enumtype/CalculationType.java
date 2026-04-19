@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum CalculationType {
-    DEFAULT("Standard formula: price * amount * (1 + tax)"),
     ELECTRONICS("Custom rule for electronics"),
     FOOD("Custom rule for food/perishables");
 

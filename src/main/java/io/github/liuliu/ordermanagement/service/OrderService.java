@@ -13,10 +13,12 @@ import io.github.liuliu.ordermanagement.domain.entity.ProductCategoryEntity;
 import io.github.liuliu.ordermanagement.domain.entity.ProductEntity;
 import io.github.liuliu.ordermanagement.domain.entity.UserEntity;
 import io.github.liuliu.ordermanagement.domain.enumtype.OrderState;
-import io.github.liuliu.ordermanagement.exception.ApiException;
+import io.github.liuliu.ordermanagement.domain.enumtype.OrderUpdateCheckResult;
 import io.github.liuliu.ordermanagement.exception.BusinessRuleException;
 import io.github.liuliu.ordermanagement.exception.ResourceNotFoundException;
+import io.github.liuliu.ordermanagement.lockkey.AdvisoryLockKeys;
 import io.github.liuliu.ordermanagement.storage.Storage;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,69 +38,96 @@ public class OrderService {
 
     @Transactional
     public CreateOrderResultDto createOrder(CreateOrderCommandDto request) {
-        UserEntity user = storage.findUserById(request.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + request.getUserId()));
+        // TODO: idempotency key.
+        // The read path below can later be folded into a single write-oriented SQL flow if needed.
+        @NonNull final UUID userId = request.getUserId();
+        storage.findUserById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
 
-        ProductEntity product = storage.findProductForOrder(request.getProductId())
+        ProductEntity product = storage.findProductAndCategoryForUpdate(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + request.getProductId()));
 
-        ProductCategoryEntity category = storage.findCategoryById(product.getProductCategoryId())
-                .orElseThrow(() -> new ResourceNotFoundException("Category not found: " + product.getProductCategoryId()));
+        @NonNull BigDecimal expectedTaxRate = request.getExpectedTaxRate();
+        if (!expectedTaxRate.equals(product.getTaxRate())) {
+            throw new BusinessRuleException("Expected unit price does not match current product price");
+        }
+        @NonNull BigDecimal expectedUnitPrice = request.getExpectedUnitPrice();
+        if (!expectedUnitPrice.equals(product.getUnitPrice())) {
+            throw new BusinessRuleException("Expected tax rate does not match current product category tax rate");
+        }
 
         BigDecimal totalCost = calculatorRegistry.calculate(
-                category.getCalculationType(),
+                product.getCalculationType(),
                 request.getOrderAmount(),
-                product.getUnitPrice(),
-                category.getTaxRate()
+                expectedUnitPrice,
+                expectedTaxRate
         );
 
+        // Snapshot values used for order creation should come from the same consistency boundary
+        // as the insert, or be protected by a write-oriented statement/locking strategy.
         OrderEntity order = OrderEntity.builder()
                 .id(UUID.randomUUID())
-                .userId(user.getId())
+                .userId(userId)
                 .productId(product.getId())
                 .orderAmount(request.getOrderAmount())
-                .unitPriceSnapshot(product.getUnitPrice())
-                .taxRateSnapshot(category.getTaxRate())
+                .unitPriceSnapshot(expectedUnitPrice)
+                .taxRateSnapshot(expectedTaxRate)
                 .totalCost(totalCost)
                 .status(OrderState.DRAFT)
                 .build();
 
-        storage.saveOrder(order);
-        return CreateOrderResultDto.builder()
-                .id(order.getId())
-                .build();
+        // TODO: use converter
+        return storage.saveOrder(order)
+                .map(item -> CreateOrderResultDto.builder()
+                        .id(order.getId())
+                        .build())
+                .orElseThrow(() -> new BusinessRuleException("Unhandled error when create order"));
     }
 
     @Transactional
     public OrderDto patchOrder(PatchOrderCommandDto request) {
-        OrderEntity order = storage.findOrderById(request.getOrderId())
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + request.getOrderId()));
+        final UUID orderId = request.getOrderId();
 
+        // Serialize the whole patch flow for the same order within the current transaction.
+        // Storage implementation should back this with PostgreSQL pg_advisory_xact_lock(...).
+        storage.acquireTransactionLock(AdvisoryLockKeys.ORDER_NAMESPACE, AdvisoryLockKeys.forOrder(orderId));
+
+        final OrderEntity order = storage.findOrderById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
+
+        // Early failure. The actual update SQL should include state/version predicates so stale writers fail cleanly.
         if (!stateMachine.isEditable(order.getStatus())) {
             throw new BusinessRuleException("Order in " + order.getStatus() + " state is not editable.");
         }
 
-        if (request.getOrderAmount() != null) {
-            order.setOrderAmount(request.getOrderAmount());
+        final OrderEntity.OrderEntityBuilder updateOrderBuilder = order.toBuilder()
+                .taxRateSnapshot(request.getExpectedTaxRate())
+                .unitPriceSnapshot(request.getExpectedUnitPrice());
+        Integer orderAmount = request.getOrderAmount();
+        if (orderAmount != null) {
+            updateOrderBuilder.orderAmount(orderAmount);
 
-            // Re-fetch category to resolve calculation strategy while keeping snapshot values for pricing.
-            ProductEntity product = storage.findProductById(order.getProductId())
+            // Re-fetch and lock product/category rows inside the same transaction
+            // so totalCost calculation does not observe mutable master data that can change mid-flow.
+            ProductEntity product = storage.findProductAndCategoryForUpdate(order.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + order.getProductId()));
-            ProductCategoryEntity category = storage.findCategoryById(product.getProductCategoryId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Category not found: " + product.getProductCategoryId()));
 
             BigDecimal totalCost = calculatorRegistry.calculate(
-                    category.getCalculationType(),
-                    order.getOrderAmount(),
-                    order.getUnitPriceSnapshot(),
-                    order.getTaxRateSnapshot()
+                    product.getCalculationType(),
+                    orderAmount,
+                    request.getExpectedUnitPrice(),
+                    request.getExpectedTaxRate()
             );
-            order.setTotalCost(totalCost);
+            updateOrderBuilder.totalCost(totalCost);
         }
 
-        final OrderEntity updatedOrder = storage.updateOrder(order)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
-        return toOrderDto(updatedOrder);
+        OrderUpdateCheckResult checkResult = storage.updateOrder(updateOrderBuilder.build());
+        if (checkResult.equals(OrderUpdateCheckResult.OK)) {
+            return storage.findOrderById(orderId).map(this::toOrderDto)
+                    .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
+        }
+
+        throw new BusinessRuleException(checkResult.getDescription());
     }
 
     public void deleteOrder(UUID orderId) {
@@ -110,12 +139,14 @@ public class OrderService {
         storage.findUserById(query.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + query.getUserId()));
 
+        // TODO: valid page and size should > 0
         int offset = (query.getPage() - 1) * query.getSize();
         OrderPagedResult pagedResult = storage.findOrdersByUserIdPaged(query.getUserId(), offset, query.getSize());
         List<OrderDto> items = pagedResult.getItems().stream()
                 .map(this::toOrderDto)
                 .collect(Collectors.toList());
 
+        // TODO: use converter
         return PagedOrderDto.builder()
                 .items(items)
                 .page(query.getPage())
@@ -124,6 +155,7 @@ public class OrderService {
                 .build();
     }
 
+    // TODO: use converter
     private OrderDto toOrderDto(OrderEntity order) {
         return OrderDto.builder()
                 .id(order.getId())

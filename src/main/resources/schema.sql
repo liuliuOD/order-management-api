@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 1. Product Categories
 CREATE TABLE product_categories (
-    category_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     category_name VARCHAR(100) NOT NULL,
     tax_rate DECIMAL(5,4) NOT NULL,
     calculation_type VARCHAR(32) NOT NULL DEFAULT 'DEFAULT',

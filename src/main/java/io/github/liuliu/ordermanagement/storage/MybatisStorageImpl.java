@@ -5,11 +5,8 @@ import io.github.liuliu.ordermanagement.domain.entity.OrderEntity;
 import io.github.liuliu.ordermanagement.domain.entity.ProductCategoryEntity;
 import io.github.liuliu.ordermanagement.domain.entity.ProductEntity;
 import io.github.liuliu.ordermanagement.domain.entity.UserEntity;
-import io.github.liuliu.ordermanagement.exception.ResourceNotFoundException;
-import io.github.liuliu.ordermanagement.mapper.OrderManagementMapper;
-import io.github.liuliu.ordermanagement.mapper.OrderMapper;
-import io.github.liuliu.ordermanagement.mapper.ProductMapper;
-import io.github.liuliu.ordermanagement.mapper.UserMapper;
+import io.github.liuliu.ordermanagement.domain.enumtype.OrderUpdateCheckResult;
+import io.github.liuliu.ordermanagement.mapper.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -24,6 +21,9 @@ public class MybatisStorageImpl implements Storage {
     private final ProductMapper productMapper;
     private final OrderMapper orderMapper;
     private final OrderManagementMapper orderManagementMapper;
+    private final CommonMapper commonMapper;
+    private final ProductCategoryMapper productCategoryMapper;
+    private final ProductManagementMapper productManagementMapper;
 
     @Override
     public Optional<UserEntity> findUserById(UUID id) {
@@ -36,18 +36,13 @@ public class MybatisStorageImpl implements Storage {
     }
 
     @Override
-    public Optional<ProductEntity> findProductById(UUID id) {
-        return productMapper.findById(id);
+    public Optional<ProductEntity> findProductAndCategory(UUID id) {
+        return productManagementMapper.findProductAndCategory(id);
     }
 
     @Override
-    public Optional<ProductCategoryEntity> findCategoryById(UUID categoryId) {
-        return productMapper.findCategoryById(categoryId);
-    }
-
-    @Override
-    public Optional<ProductEntity> findProductForOrder(UUID id) {
-        return productMapper.findProductWithCategory(id);
+    public Optional<ProductEntity> findProductAndCategoryForUpdate(UUID id) {
+        return productManagementMapper.findProductAndCategoryForUpdate(id);
     }
 
     @Override
@@ -70,8 +65,13 @@ public class MybatisStorageImpl implements Storage {
     }
 
     @Override
-    public Optional<OrderEntity> updateOrder(OrderEntity order) {
-        return orderMapper.update(order);
+    public OrderUpdateCheckResult updateOrder(OrderEntity order) {
+        return orderMapper.updateAndReturnCheckResult(order);
+    }
+
+    @Override
+    public void acquireTransactionLock(int namespace, int resourceKey) {
+        commonMapper.acquireTransactionLock(namespace, resourceKey);
     }
 
     @Override

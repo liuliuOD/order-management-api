@@ -30,6 +30,8 @@ public class OrderConverter {
                 .userId(request.getUserId())
                 .productId(request.getProductId())
                 .orderAmount(request.getOrderAmount())
+                .expectedTaxRate(request.getExpectedTaxRate())
+                .expectedUnitPrice(request.getExpectedUnitPrice())
                 .build();
     }
 
@@ -40,6 +42,8 @@ public class OrderConverter {
         return PatchOrderCommandDto.builder()
                 .orderId(orderId)
                 .orderAmount(request.getOrderAmount())
+                .expectedTaxRate(request.getExpectedTaxRate())
+                .expectedUnitPrice(request.getExpectedUnitPrice())
                 .build();
     }
 
@@ -69,12 +73,10 @@ public class OrderConverter {
         response.setUserId(dto.getUserId());
         response.setProductId(dto.getProductId());
         response.setOrderAmount(dto.getOrderAmount());
-        response.setUnitPriceSnapshot(dto.getUnitPriceSnapshot());
-        response.setTaxRateSnapshot(dto.getTaxRateSnapshot());
+        response.setUnitPrice(dto.getUnitPriceSnapshot());
+        response.setTaxRate(dto.getTaxRateSnapshot());
         response.setTotalCost(dto.getTotalCost());
-        if (dto.getStatus() != null) {
-            response.setStatus(OrderStatus.fromValue(dto.getStatus().name()));
-        }
+        response.setStatus(OrderStatus.fromValue(dto.getStatus().name()));
         response.setCreatedAt(dto.getCreatedAt());
         response.setUpdatedAt(dto.getUpdatedAt());
         return response;

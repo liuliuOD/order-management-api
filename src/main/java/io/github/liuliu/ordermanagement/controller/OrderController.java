@@ -27,7 +27,8 @@ public class OrderController implements OrderApi {
     private final OrderConverter orderConverter;
 
     @Override
-    public ResponseEntity<CreateOrderResponse> createOrder(CreateOrderRequest createOrderRequest) {
+    public ResponseEntity<CreateOrderResponse> createOrder(String idempotencyKey,
+                                                           CreateOrderRequest createOrderRequest) {
         CreateOrderCommandDto command = orderConverter.toCreateOrderCommandDto(createOrderRequest);
         CreateOrderResultDto result = orderService.createOrder(command);
         return ResponseEntity.status(201).body(orderConverter.toCreateOrderResponse(result));

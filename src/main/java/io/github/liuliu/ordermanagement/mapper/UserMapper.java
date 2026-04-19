@@ -12,5 +12,6 @@ public interface UserMapper {
 
     Optional<UserEntity> findById(@Param("id") UUID id);
 
-    void insert(UserEntity user);
+    // only for unittest now
+    Optional<UserEntity> insert(UserEntity user);
 }

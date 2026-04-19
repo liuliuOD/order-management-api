@@ -2,6 +2,7 @@ package io.github.liuliu.ordermanagement.mapper;
 
 import io.github.liuliu.ordermanagement.domain.dto.OrderPagedResult;
 import io.github.liuliu.ordermanagement.domain.entity.OrderEntity;
+import io.github.liuliu.ordermanagement.domain.enumtype.OrderUpdateCheckResult;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -30,7 +31,7 @@ public interface OrderMapper {
      */
     long countByUserId(@Param("userId") UUID userId);
 
-    Optional<OrderEntity> update(OrderEntity order);
+    OrderUpdateCheckResult updateAndReturnCheckResult(OrderEntity order);
 
     /**
      * Soft deletes an order by ID.

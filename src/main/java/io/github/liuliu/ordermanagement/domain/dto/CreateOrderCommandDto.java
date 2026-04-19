@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Data
@@ -15,4 +16,6 @@ public class CreateOrderCommandDto {
     private UUID userId;
     private UUID productId;
     private Integer orderAmount;
+    private BigDecimal expectedTaxRate;
+    private BigDecimal expectedUnitPrice;
 }

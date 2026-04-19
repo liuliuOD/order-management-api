@@ -22,27 +22,30 @@
         total_cost, status, is_deleted, created_at, updated_at, deleted_at
     </sql>
 
-    <select id="insertAndReturn" affectData="true" flushCache="true">
+    <select id="insertAndReturn" affectData="true" flushCache="true" resultMap="OrderMap">
         INSERT INTO orders (
-            id, user_id, product_id, order_amount, 
-            unit_price_snapshot, tax_rate_snapshot, total_cost, 
-            status, is_deleted, created_at, updated_at
+        id, user_id, product_id, order_amount,
+        unit_price_snapshot, tax_rate_snapshot, total_cost,
+        status, is_deleted, created_at, updated_at
         ) VALUES (
-            #{id}, #{userId}, #{productId}, #{orderAmount},
-            #{unitPriceSnapshot}, #{taxRateSnapshot}, #{totalCost}, 
-            #{status}, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        #{id}, #{userId}, #{productId}, #{orderAmount},
+        #{unitPriceSnapshot}, #{taxRateSnapshot}, #{totalCost},
+        #{status}, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
-        RETURNING <include refid="selectForOrderMap"/>
+        RETURNING
+        <include refid="selectForOrderMap"/>
     </select>
 
     <select id="findById" resultMap="OrderMap">
-        SELECT <include refid="selectForOrderMap"/>
+        SELECT
+        <include refid="selectForOrderMap"/>
         FROM orders
         WHERE id = #{id} AND is_deleted = false
     </select>
 
     <select id="findByUserIdPaged" resultMap="OrderMap">
-        SELECT <include refid="selectForOrderMap"/>
+        SELECT
+        <include refid="selectForOrderMap"/>
         FROM orders
         WHERE user_id = #{userId} AND is_deleted = false
         ORDER BY created_at DESC, id DESC
@@ -54,25 +57,44 @@
         WHERE user_id = #{userId} AND is_deleted = false
     </select>
 
-    <update id="update">
-        UPDATE orders
-        SET 
+    <select id="updateAndReturnCheckResult" affectData="true" flushCache="true" resultType="OrderUpdateCheckResult">
+        WITH target_order AS (
+            SELECT
+            CASE
+                WHEN o.is_deleted = TRUE THEN 'ORDER_DELETED'
+                WHEN o.status NOT IN ('DRAFT', 'SUBMITTED') THEN 'ORDER_NOT_EDITABLE'
+                WHEN p.id IS NULL OR p.is_deleted = TRUE THEN 'PRODUCT_NOT_AVAILABLE'
+                WHEN p.unit_price &lt;&gt; #{unitPriceSnapshot} THEN 'UNIT_PRICE_MISMATCH'
+                WHEN pc.tax_rate &lt;&gt; #{taxRateSnapshot} THEN 'TAX_RATE_MISMATCH'
+                ELSE 'OK'
+            END AS check_result
+            FROM orders o
+            LEFT JOIN products p ON p.id = o.product_id
+            LEFT JOIN product_categories pc ON pc.category_id = p.product_category_id
+            WHERE o.id = #{id}
+        ),
+        updated_order AS (
+            UPDATE orders o
+            SET
             order_amount = #{orderAmount},
             total_cost = #{totalCost},
-            status = #{status},
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = #{id} AND is_deleted = false
-        RETURNING <include refid="selectForOrderMap"/>
-    </update>
+            FROM target_order t
+            WHERE o.id = #{id}
+            AND t.check_result = 'OK'
+        )
+        SELECT COALESCE((SELECT check_result FROM target_order), 'ORDER_NOT_FOUND')
+    </select>
 
-    <select id="softDeleteAndReturn" affectData="true" flushCache="true">
+    <select id="softDeleteAndReturn" affectData="true" flushCache="true" resultMap="OrderMap">
         UPDATE orders
-        SET 
-            is_deleted = true,
-            deleted_at = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
+        SET
+        is_deleted = true,
+        deleted_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
         WHERE id = #{id} AND is_deleted = false
-        RETURNING <include refid="selectForOrderMap"/>
+        RETURNING
+        <include refid="selectForOrderMap"/>
     </select>
 
 </mapper>

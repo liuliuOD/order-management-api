@@ -1,5 +1,6 @@
 package io.github.liuliu.ordermanagement.domain.entity;
 
+import io.github.liuliu.ordermanagement.domain.enumtype.CalculationType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,6 +21,8 @@ public class ProductEntity {
     private UUID productCategoryId;
     private String productName;
     private BigDecimal unitPrice; // decimal(19,4)
+    private BigDecimal taxRate;   // decimal(19,4)
+    private CalculationType calculationType;
     private Boolean isDeleted;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;

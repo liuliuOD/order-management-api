@@ -54,6 +54,8 @@ paths:
       tags: [Order]
       summary: Create Order
       operationId: createOrder
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -84,6 +86,13 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '409':
           description: Conflict with current resource state or request data
+          headers:
+            X-Request-Id: {$ref: '#/components/headers/X-Request-Id'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '422':
+          description: Idempotency key reused with different request payload
           headers:
             X-Request-Id: {$ref: '#/components/headers/X-Request-Id'}
           content:
@@ -218,11 +227,20 @@ components:
     X-Request-Id:
       description: Unique trace ID for correlation.
       schema: {type: string, format: uuid}
+    Idempotency-Key:
+      description: Unique key to ensure create-order requests are processed at most once for the same semantic request.
+      schema: {type: string, minLength: 1, maxLength: 128}
 
   parameters:
     ProductId: {name: product_id, in: path, required: true, schema: {type: string, format: uuid}}
     OrderId: {name: order_id, in: path, required: true, schema: {type: string, format: uuid}}
     UserId: {name: userId, in: path, required: true, schema: {type: string, format: uuid}}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Unique key supplied by the client to deduplicate retried create-order requests.
+      schema: {type: string, minLength: 1, maxLength: 128}
 
   schemas:
     Product:
@@ -278,7 +296,7 @@ components:
       properties:
         userId: {type: string, format: uuid}
         productId: {type: string, format: uuid}
-        orderAmount: {type: integer, minimum: 1}
+        orderAmount: {type: integer, minimum: 1, maximum: 2147483647}
         expectedUnitPrice: {type: number, minimum: 0, multipleOf: 0.0001, example: 0.0001}
         expectedTaxRate: {type: number, minimum: 0, multipleOf: 0.0001, example: 0.0001}
 
@@ -292,7 +310,7 @@ components:
       type: object
       required: [orderAmount, expectedUnitPrice, expectedTaxRate]
       properties:
-        orderAmount: {type: integer, minimum: 1}
+        orderAmount: {type: integer, minimum: 1, maximum: 2147483647}
         expectedUnitPrice: {type: number, minimum: 0, multipleOf: 0.0001, example: 0.0001}
         expectedTaxRate: {type: number, minimum: 0, multipleOf: 0.0001, example: 0.0001}
 

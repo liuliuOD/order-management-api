@@ -144,6 +144,21 @@ class OrderManagementIntegrationSpec extends Specification {
         !orderMapper.findById(orderId).isPresent()
     }
 
+    def "Unsupported Content-Type should return 415 instead of 500"() {
+        when: "Calling create order endpoint with unsupported media type"
+        def result = mockMvc.perform(post("/api/v1/order")
+                .contentType(MediaType.TEXT_PLAIN)
+                .content("not-json"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath('$.code').value("ERR_UNSUPPORTED_MEDIA_TYPE"))
+                .andExpect(jsonPath('$.message').value("Content-Type is not supported"))
+                .andExpect(header().exists("X-Request-Id"))
+                .andReturn()
+
+        then:
+        result.response.status == 415
+    }
+
     def "Task 3-3: User Deletion and Query"() {
         given: "A user and their orders"
         def userId = UUID.randomUUID()

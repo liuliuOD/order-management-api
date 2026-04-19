@@ -1,27 +1,34 @@
 package io.github.liuliu.ordermanagement.calculator;
 
 import io.github.liuliu.ordermanagement.domain.enumtype.CalculationType;
-import lombok.RequiredArgsConstructor;
+import io.github.liuliu.ordermanagement.exception.ResourceNotFoundException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.List;
+import java.util.Map;
 
 /**
  * Registry and dispatcher for Order calculators.
  */
 @Service
-@RequiredArgsConstructor
 public class CalculatorRegistry {
 
-    private final List<OrderTotalCostCalculator> calculators;
-    private final DefaultOrderTotalCostCalculator defaultCalculator;
+    @Autowired
+    private final ElectronicOrderTotalCostCalculator electronicOrderTotalCostCalculator;
+
+    private final Map<CalculationType, OrderTotalCostCalculator> calculators;
+
+    public CalculatorRegistry(ElectronicOrderTotalCostCalculator electronicOrderTotalCostCalculator) {
+        this.electronicOrderTotalCostCalculator = electronicOrderTotalCostCalculator;
+        this.calculators =
+                Map.of(CalculationType.ELECTRONICS, this.electronicOrderTotalCostCalculator);
+    }
 
     public BigDecimal calculate(CalculationType type, Integer orderAmount, BigDecimal unitPriceSnapshot, BigDecimal taxRateSnapshot) {
-        return calculators.stream()
-                .filter(c -> c.supports(type))
-                .findFirst()
-                .orElse(defaultCalculator)
-                .calculate(orderAmount, unitPriceSnapshot, taxRateSnapshot);
+        if (!calculators.containsKey(type)) {
+            throw new ResourceNotFoundException("Calculation type not found");
+        }
+        return calculators.get(type).calculate(orderAmount, unitPriceSnapshot, taxRateSnapshot);
     }
 }

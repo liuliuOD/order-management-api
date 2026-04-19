@@ -23,8 +23,8 @@ public interface OrderTotalCostCalculator {
     /**
      * Determines if this calculator supports a specific calculation type.
      *
-     * @param type The type of calculation strategy.
+     * @param targetType The type of calculation strategy in target product.
      * @return true if supported.
      */
-    boolean supports(CalculationType type);
+    boolean supports(CalculationType targetType);
 }
