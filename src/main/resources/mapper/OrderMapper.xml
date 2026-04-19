@@ -70,7 +70,7 @@
             END AS check_result
             FROM orders o
             LEFT JOIN products p ON p.id = o.product_id
-            LEFT JOIN product_categories pc ON pc.category_id = p.product_category_id
+            LEFT JOIN product_categories pc ON pc.id = p.product_category_id
             WHERE o.id = #{id}
         ),
         updated_order AS (
