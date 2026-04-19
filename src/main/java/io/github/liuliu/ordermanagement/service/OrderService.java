@@ -1,5 +1,6 @@
 package io.github.liuliu.ordermanagement.service;
 
+import io.github.liuliu.ordermanagement.assembler.OrderAssembler;
 import io.github.liuliu.ordermanagement.calculator.CalculatorRegistry;
 import io.github.liuliu.ordermanagement.domain.dto.CreateOrderCommandDto;
 import io.github.liuliu.ordermanagement.domain.dto.CreateOrderResultDto;
@@ -44,6 +45,8 @@ public class OrderService {
         storage.findUserById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
 
+        // Re-fetch and lock product/category rows inside the same transaction
+        // so totalCost calculation does not observe mutable master data that can change mid-flow.
         ProductEntity product = storage.findProductAndCategoryForUpdate(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + request.getProductId()));
 
@@ -76,11 +79,8 @@ public class OrderService {
                 .status(OrderState.DRAFT)
                 .build();
 
-        // TODO: use converter
         return storage.saveOrder(order)
-                .map(item -> CreateOrderResultDto.builder()
-                        .id(order.getId())
-                        .build())
+                .map(OrderAssembler::toCreateOrderResultDto)
                 .orElseThrow(() -> new BusinessRuleException("Unhandled error when create order"));
     }
 
@@ -112,18 +112,27 @@ public class OrderService {
             ProductEntity product = storage.findProductAndCategoryForUpdate(order.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + order.getProductId()));
 
+            @NonNull BigDecimal expectedTaxRate = request.getExpectedTaxRate();
+            if (!expectedTaxRate.equals(product.getTaxRate())) {
+                throw new BusinessRuleException("Expected unit price does not match current product price");
+            }
+            @NonNull BigDecimal expectedUnitPrice = request.getExpectedUnitPrice();
+            if (!expectedUnitPrice.equals(product.getUnitPrice())) {
+                throw new BusinessRuleException("Expected tax rate does not match current product category tax rate");
+            }
+
             BigDecimal totalCost = calculatorRegistry.calculate(
                     product.getCalculationType(),
                     orderAmount,
-                    request.getExpectedUnitPrice(),
-                    request.getExpectedTaxRate()
+                    expectedUnitPrice,
+                    expectedTaxRate
             );
             updateOrderBuilder.totalCost(totalCost);
         }
 
         OrderUpdateCheckResult checkResult = storage.updateOrder(updateOrderBuilder.build());
         if (checkResult.equals(OrderUpdateCheckResult.OK)) {
-            return storage.findOrderById(orderId).map(this::toOrderDto)
+            return storage.findOrderById(orderId).map(OrderAssembler::toOrderDto)
                     .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
         }
 
@@ -139,35 +148,9 @@ public class OrderService {
         storage.findUserById(query.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + query.getUserId()));
 
-        // TODO: valid page and size should > 0
         int offset = (query.getPage() - 1) * query.getSize();
         OrderPagedResult pagedResult = storage.findOrdersByUserIdPaged(query.getUserId(), offset, query.getSize());
-        List<OrderDto> items = pagedResult.getItems().stream()
-                .map(this::toOrderDto)
-                .collect(Collectors.toList());
 
-        // TODO: use converter
-        return PagedOrderDto.builder()
-                .items(items)
-                .page(query.getPage())
-                .size(query.getSize())
-                .totalItems(pagedResult.getTotalItems())
-                .build();
-    }
-
-    // TODO: use converter
-    private OrderDto toOrderDto(OrderEntity order) {
-        return OrderDto.builder()
-                .id(order.getId())
-                .userId(order.getUserId())
-                .productId(order.getProductId())
-                .orderAmount(order.getOrderAmount())
-                .unitPriceSnapshot(order.getUnitPriceSnapshot())
-                .taxRateSnapshot(order.getTaxRateSnapshot())
-                .totalCost(order.getTotalCost())
-                .status(order.getStatus())
-                .createdAt(order.getCreatedAt())
-                .updatedAt(order.getUpdatedAt())
-                .build();
+        return OrderAssembler.toPagedOrderDto(pagedResult, query.getPage(), query.getSize());
     }
 }

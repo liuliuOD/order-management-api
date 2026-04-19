@@ -57,7 +57,7 @@ public class MybatisStorageImpl implements Storage {
 
     @Override
     public OrderPagedResult findOrdersByUserIdPaged(UUID userId, int offset, int limit) {
-        // TBD: merge findByUserIdPaged() and countByUserId()
+        // TODO: merge findByUserIdPaged() and countByUserId()
         return OrderPagedResult.builder()
                 .items(orderMapper.findByUserIdPaged(userId, offset, limit))
                 .totalItems(orderMapper.countByUserId(userId))
