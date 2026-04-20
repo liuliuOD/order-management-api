@@ -4,6 +4,7 @@ import io.github.liuliu.ordermanagement.domain.dto.OrderPagedResult;
 import io.github.liuliu.ordermanagement.domain.entity.OrderEntity;
 import io.github.liuliu.ordermanagement.domain.entity.ProductEntity;
 import io.github.liuliu.ordermanagement.domain.entity.UserEntity;
+import io.github.liuliu.ordermanagement.domain.enumtype.OrderCreateCheckResult;
 import io.github.liuliu.ordermanagement.domain.enumtype.OrderUpdateCheckResult;
 import io.github.liuliu.ordermanagement.mapper.*;
 import lombok.RequiredArgsConstructor;
@@ -43,8 +44,8 @@ public class MybatisStorageImpl implements Storage {
     }
 
     @Override
-    public Optional<OrderEntity> saveOrder(OrderEntity order) {
-        return orderMapper.insertAndReturn(order);
+    public OrderCreateCheckResult saveOrder(OrderEntity order) {
+        return orderMapper.insertAndReturnCheckResult(order);
     }
 
     @Override

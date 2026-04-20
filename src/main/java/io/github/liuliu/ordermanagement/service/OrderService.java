@@ -9,6 +9,7 @@ import io.github.liuliu.ordermanagement.calculator.CalculatorRegistry;
 import io.github.liuliu.ordermanagement.domain.dto.*;
 import io.github.liuliu.ordermanagement.domain.entity.OrderEntity;
 import io.github.liuliu.ordermanagement.domain.entity.ProductEntity;
+import io.github.liuliu.ordermanagement.domain.enumtype.OrderCreateCheckResult;
 import io.github.liuliu.ordermanagement.domain.enumtype.OrderState;
 import io.github.liuliu.ordermanagement.domain.enumtype.OrderUpdateCheckResult;
 import io.github.liuliu.ordermanagement.exception.BusinessRuleException;
@@ -43,7 +44,8 @@ public class OrderService {
 
         // Re-fetch and lock product/category rows inside the same transaction
         // so totalCost calculation does not observe mutable master data that can change mid-flow.
-        ProductEntity product = storage.findProductAndCategoryForUpdate(request.getProductId())
+        // use `storage.findProductAndCategoryForUpdate(request.getProductId())` when we want to lock product and category for order insert
+        ProductEntity product = storage.findProductAndCategory(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + request.getProductId()));
 
         @NonNull BigDecimal expectedTaxRate = request.getExpectedTaxRate();
@@ -76,13 +78,16 @@ public class OrderService {
                 .status(OrderState.DRAFT)
                 .build();
 
-        CreateOrderResultDto result = storage.saveOrder(order)
-                .map(OrderAssembler::toCreateOrderResultDto)
-                .orElseThrow(() -> new BusinessRuleException("Unhandled error when create order"));
-
         AuditContextHolder.setTargetId(orderId.toString());
-        AuditContextHolder.setAfterSnapshot(result);
-        return result;
+        OrderCreateCheckResult checkResult = storage.saveOrder(order);
+        if (checkResult.equals(OrderCreateCheckResult.OK)) {
+            OrderEntity inserted = storage.findOrderById(orderId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
+            AuditContextHolder.setAfterSnapshot(inserted);
+            return OrderAssembler.toCreateOrderResultDto(inserted);
+        }
+
+        throw new BusinessRuleException(checkResult.getDescription());
     }
 
     @Auditable(action = AuditAction.PATCH_ORDER, targetType = AuditTargetType.ORDER)
@@ -100,7 +105,6 @@ public class OrderService {
         AuditContextHolder.setTargetId(orderId.toString());
         AuditContextHolder.setBeforeSnapshot(order);
 
-
         // Early failure. The actual update SQL should include state/version predicates so stale writers fail cleanly.
         if (!stateMachine.isEditable(order.getStatus())) {
             throw new BusinessRuleException("Order in " + order.getStatus() + " state is not editable.");
@@ -115,7 +119,8 @@ public class OrderService {
 
             // Re-fetch and lock product/category rows inside the same transaction
             // so totalCost calculation does not observe mutable master data that can change mid-flow.
-            ProductEntity product = storage.findProductAndCategoryForUpdate(order.getProductId())
+            // use `storage.findProductAndCategoryForUpdate(order.getProductId())` when we want to lock product and category for order patch
+            ProductEntity product = storage.findProductAndCategory(order.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + order.getProductId()));
 
             @NonNull BigDecimal expectedTaxRate = request.getExpectedTaxRate();
@@ -138,10 +143,10 @@ public class OrderService {
 
         OrderUpdateCheckResult checkResult = storage.updateOrder(updateOrderBuilder.build());
         if (checkResult.equals(OrderUpdateCheckResult.OK)) {
-            OrderDto updated = storage.findOrderById(orderId).map(OrderAssembler::toOrderDto)
+            OrderEntity updated = storage.findOrderById(orderId)
                     .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
             AuditContextHolder.setAfterSnapshot(updated);
-            return updated;
+            return OrderAssembler.toOrderDto(updated);
         }
 
         throw new BusinessRuleException(checkResult.getDescription());

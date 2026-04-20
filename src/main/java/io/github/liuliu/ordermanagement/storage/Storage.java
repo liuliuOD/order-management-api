@@ -5,6 +5,7 @@ import io.github.liuliu.ordermanagement.domain.entity.OrderEntity;
 import io.github.liuliu.ordermanagement.domain.entity.ProductCategoryEntity;
 import io.github.liuliu.ordermanagement.domain.entity.ProductEntity;
 import io.github.liuliu.ordermanagement.domain.entity.UserEntity;
+import io.github.liuliu.ordermanagement.domain.enumtype.OrderCreateCheckResult;
 import io.github.liuliu.ordermanagement.domain.enumtype.OrderUpdateCheckResult;
 
 import java.util.Optional;
@@ -24,7 +25,7 @@ public interface Storage {
     Optional<ProductEntity> findProductAndCategoryForUpdate(UUID id);
 
     // Order Operations
-    Optional<OrderEntity> saveOrder(OrderEntity order);
+    OrderCreateCheckResult saveOrder(OrderEntity order);
     Optional<OrderEntity> findOrderById(UUID id);
     OrderPagedResult findOrdersByUserIdPaged(UUID userId, int offset, int limit);
     OrderUpdateCheckResult updateOrder(OrderEntity order);

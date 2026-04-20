@@ -2,6 +2,7 @@ package io.github.liuliu.ordermanagement.mapper;
 
 import io.github.liuliu.ordermanagement.domain.dto.OrderPagedResult;
 import io.github.liuliu.ordermanagement.domain.entity.OrderEntity;
+import io.github.liuliu.ordermanagement.domain.enumtype.OrderCreateCheckResult;
 import io.github.liuliu.ordermanagement.domain.enumtype.OrderUpdateCheckResult;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -30,6 +31,8 @@ public interface OrderMapper {
      * Counts active orders for a user.
      */
     long countByUserId(@Param("userId") UUID userId);
+
+    OrderCreateCheckResult insertAndReturnCheckResult(OrderEntity order);
 
     OrderUpdateCheckResult updateAndReturnCheckResult(OrderEntity order);
 
