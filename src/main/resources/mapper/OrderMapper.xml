@@ -58,29 +58,41 @@
     </select>
 
     <select id="insertAndReturnCheckResult" affectData="true" flushCache="true" resultType="OrderCreateCheckResult">
-        WITH target_order AS (
-            SELECT
-            CASE
-                WHEN p.is_deleted = TRUE THEN 'PRODUCT_NOT_AVAILABLE'
-                WHEN pc.id IS NULL THEN 'CATEGORY_NOT_AVAILABLE'
-                WHEN p.unit_price &lt;&gt; #{unitPriceSnapshot} THEN 'UNIT_PRICE_MISMATCH'
-                WHEN pc.tax_rate &lt;&gt; #{taxRateSnapshot} THEN 'TAX_RATE_MISMATCH'
-                ELSE 'OK'
-            END AS check_result
+        WITH locked_product AS (
+            SELECT p.id, p.product_category_id, p.unit_price, p.is_deleted
             FROM products p
-            LEFT JOIN product_categories pc ON pc.id = p.product_category_id
             WHERE p.id = #{productId}
-            FOR UPDATE OF p, pc
-            ),
+            FOR UPDATE OF p
+        ),
+        locked_category AS (
+            SELECT pc.id, pc.tax_rate
+            FROM product_categories pc
+            JOIN locked_product p ON pc.id = p.product_category_id
+            FOR UPDATE OF pc
+        ),
+        target_order AS (
+            SELECT
+                CASE
+                    WHEN p.id IS NULL THEN 'PRODUCT_NOT_AVAILABLE'
+                    WHEN p.is_deleted = TRUE THEN 'PRODUCT_NOT_AVAILABLE'
+                    WHEN c.id IS NULL THEN 'CATEGORY_NOT_AVAILABLE'
+                    WHEN p.unit_price &lt;&gt; #{unitPriceSnapshot} THEN 'UNIT_PRICE_MISMATCH'
+                    WHEN c.tax_rate &lt;&gt; #{taxRateSnapshot} THEN 'TAX_RATE_MISMATCH'
+                    ELSE 'OK'
+                END AS check_result
+            FROM locked_product p
+            FULL JOIN locked_category c ON c.id = p.product_category_id
+        ),
         inserted_order AS (
             INSERT INTO orders (
-                id, user_id, product_id, order_amount,
-                unit_price_snapshot, tax_rate_snapshot, total_cost,
-                status, is_deleted, created_at, updated_at
-                )
-            SELECT #{id}, #{userId}, #{productId}, #{orderAmount},
-                #{unitPriceSnapshot}, #{taxRateSnapshot}, #{totalCost},
-                #{status}, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            id, user_id, product_id, order_amount,
+            unit_price_snapshot, tax_rate_snapshot, total_cost,
+            status, is_deleted, created_at, updated_at
+        )
+            SELECT
+            #{id}, #{userId}, #{productId}, #{orderAmount},
+            #{unitPriceSnapshot}, #{taxRateSnapshot}, #{totalCost},
+            #{status}, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             FROM target_order
             WHERE check_result = 'OK'
         )
@@ -88,21 +100,39 @@
     </select>
 
     <select id="updateAndReturnCheckResult" affectData="true" flushCache="true" resultType="OrderUpdateCheckResult">
-        WITH target_order AS (
+        WITH locked_order AS (
+            SELECT o.id, o.product_id, o.status, o.is_deleted
+            FROM orders o
+            WHERE o.id = #{id}
+            FOR UPDATE OF o
+        ),
+        locked_product AS (
+            SELECT p.id, p.product_category_id, p.unit_price, p.is_deleted
+            FROM products p
+            JOIN locked_order o ON p.id = o.product_id
+            FOR UPDATE OF p
+        ),
+        locked_category AS (
+            SELECT pc.id, pc.tax_rate
+            FROM product_categories pc
+            JOIN locked_product p ON pc.id = p.product_category_id
+            FOR UPDATE OF pc
+        ),
+        target_order AS (
             SELECT
-            CASE
-                WHEN o.is_deleted = TRUE THEN 'ORDER_DELETED'
-                WHEN o.status NOT IN ('DRAFT', 'SUBMITTED') THEN 'ORDER_NOT_EDITABLE'
-                WHEN p.id IS NULL OR p.is_deleted = TRUE THEN 'PRODUCT_NOT_AVAILABLE'
-                WHEN p.unit_price &lt;&gt; #{unitPriceSnapshot} THEN 'UNIT_PRICE_MISMATCH'
-                WHEN pc.tax_rate &lt;&gt; #{taxRateSnapshot} THEN 'TAX_RATE_MISMATCH'
+                CASE
+                    WHEN o.id IS NULL THEN 'ORDER_NOT_FOUND'
+                    WHEN o.is_deleted = TRUE THEN 'ORDER_DELETED'
+                    WHEN o.status NOT IN ('DRAFT', 'SUBMITTED') THEN 'ORDER_NOT_EDITABLE'
+                    WHEN p.id IS NULL OR p.is_deleted = TRUE THEN 'PRODUCT_NOT_AVAILABLE'
+                    WHEN c.id IS NULL THEN 'CATEGORY_NOT_AVAILABLE'
+                    WHEN p.unit_price &lt;&gt; #{unitPriceSnapshot} THEN 'UNIT_PRICE_MISMATCH'
+                    WHEN c.tax_rate &lt;&gt; #{taxRateSnapshot} THEN 'TAX_RATE_MISMATCH'
                 ELSE 'OK'
             END AS check_result
-            FROM orders o
-            LEFT JOIN products p ON p.id = o.product_id
-            LEFT JOIN product_categories pc ON pc.id = p.product_category_id
-            WHERE o.id = #{id}
-            FOR UPDATE OF o, p, pc
+            FROM locked_order o
+            LEFT JOIN locked_product p ON p.id = o.product_id
+            LEFT JOIN locked_category c ON c.id = p.product_category_id
         ),
         updated_order AS (
             UPDATE orders o
