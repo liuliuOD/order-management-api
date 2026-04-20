@@ -1,52 +1,224 @@
 # Order Management API
 
-## 1. Overview
-An enterprise-grade Order Management API built with **Spring Boot 3** and **Java 21**, specifically designed for **B2B retail supply chain** scenarios. This system emphasizes data consistency, high-performance concurrency, and professional observability.
+Backend coding assignment implemented with **Spring Boot**, **Java 21**, **PostgreSQL**, and **MyBatis**.
 
-## 2. Technical Stack
-- **Runtime**: Java 21 (Long-Term Support)
-- **Concurrency**: **Virtual Threads (Project Loom)** enabled for high-throughput I/O.
-- **Server**: **Jetty** (Optimized for modern cloud-native workloads).
-- **Database**: **PostgreSQL** (Utilizing Writable CTEs for complex transactions).
-- **ORM**: **MyBatis** (For precise control over SQL performance).
-- **Testing**: **Groovy + Spock** (For readable and expressive specifications).
+**What you can review in ~1 minute**
+- REST API under `/api/v1` with OpenAPI spec (`src/main/resources/openapi/api.yaml`)
+- Order creation uses **snapshot pricing/tax** (historical accuracy) and **soft delete** (auditability)
+- Controlled updates via **state machine** + PostgreSQL **transaction-scoped advisory locks**
+- End-to-end request correlation via `X-Request-Id` (header + error body)
+- Optional local observability via **Spring Boot Actuator + OTLP export** into a Grafana-based local stack
 
-## 3. Architecture & API Design
-### System Layers
-`Controller` -> `Converter` -> `Service` -> `Storage` -> `Service` -> `Controller` -> `Converter` -> `Response`
+## Quick Start (Local)
 
-### Key Design Patterns
-- **API Versioning**: Global versioning via `/api/v1` prefix to ensure contract stability.
-- **Data Consistency**:
-  - **Snapshot Pattern**: Locks `unitPrice` and `taxRate` at order creation to preserve historical accuracy.
-  - **Soft Deletion**: Implemented for both Users and Orders to maintain business history.
-- **Pagination**: Nested wrap structure (`pagination` + `data`) with **1-indexed** page numbers and deterministic sorting (**created_at DESC, id DESC**).
-- **Observability**: Full-stack traceability via **`X-Trace-Id`** (exposed in both body and headers).
+### Prerequisites
+- Java 21
+- A container runtime compatible with Docker Compose workflows, such as **Docker** or **Podman** (for local Postgres + optional observability stack)
 
-## 4. System Architecture (Mermaid)
-```mermaid
-graph TD
-    Client[Client / API Consumer] --> Controller[Spring Boot REST API]
-    
-    subgraph "Application Logic"
-        Controller --> Converter[Converter Layer]
-        Converter --> Service[Application Service Layer]
-        Service --> StateMachine[State Machine & Validation]
-        Service --> Calculator[Calculator Strategy]
-    end
-    
-    subgraph "Infrastructure"
-        Service --> Storage[Storage Layer]
-        Storage --> DB[(PostgreSQL)]
-    end
-    
-    subgraph "Integration Hooks"
-        Service --> Pub[Event Publisher]
-        Service --> Sync[30-min Data Sync]
-    end
+### 1) Start dependencies
+```bash
+docker compose up -d postgres lgtm
+```
+This starts:
+- `postgres`: local PostgreSQL for the assignment data
+- `lgtm`: local observability stack for traces / metrics / logs
+
+### 2) Initialize the database (schema + seed)
+This repo provides SQL scripts (not auto-applied):
+- `src/main/resources/sql/schema.sql`
+- `src/main/resources/sql/seed.sql`
+
+If you use the provided container:
+```bash
+docker exec -i order-management-postgres psql -U postgres -d order_management < src/main/resources/sql/schema.sql
+docker exec -i order-management-postgres psql -U postgres -d order_management < src/main/resources/sql/seed.sql
 ```
 
-## 5. Order Lifecycle (State Machine)
+### 3) Run the API
+```bash
+./gradlew bootRun
+```
+
+### 4) API docs (local profile)
+`spring.profiles.active` defaults to `local`, which enables Springdoc:
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- OpenAPI JSON: `http://localhost:8080/api-docs`
+
+## Assignment Coverage
+
+### Functional requirements / assumptions
+- Inventory is out of scope (assume unlimited product quantity).
+- Product unit price and category tax rate can change over time.
+- Order stores **unitPriceSnapshot** and **taxRateSnapshot** at creation and does **not** retroactively change when master data changes.
+- Records remain traceable even after deletion (soft delete).
+
+### Implemented endpoints
+| Endpoint | Behavior | Notes |
+|---|---|---|
+| `GET /api/v1/product/{product_id}` | Retrieve active product | 404 if not found |
+| `POST /api/v1/order` | Create order with snapshot price/tax | Validates `expectedUnitPrice` + `expectedTaxRate` against current master data |
+| `PATCH /api/v1/order/{order_id}` | Controlled update (orderAmount only) | Guarded by state machine + serialized per-order patch flow |
+| `DELETE /api/v1/order/{order_id}` | Soft delete order | Returns 204 |
+| `DELETE /api/v1/user/{userId}` | Soft delete user + cascade order soft delete | Returns 204 |
+| `GET /api/v1/order/{userId}` | Paged orders by user | 1-indexed pagination; newest-first sorting |
+
+## Key Design Decisions (Current Implementation)
+
+- **Snapshot Pattern**: orders store `unitPriceSnapshot` + `taxRateSnapshot` at creation for accounting correctness.
+- **Soft Delete**: users/orders are not physically deleted; they are removed from “active” operations but remain auditable.
+- **Controlled updates**: PATCH is constrained by an order state machine; illegal edits fail fast.
+- **Concurrency control**: patch flow acquires a PostgreSQL **transaction-scoped advisory lock** per order id.
+- **Pagination**: offset-based, 1-indexed `page` with deterministic sorting (**created_at DESC, id DESC**).
+- **Observability**: `X-Request-Id` is generated/propagated per request; errors include `requestId` in the JSON body.
+
+## Cross-Cutting Concerns & Tooling
+
+The project includes a few cross-cutting engineering choices that are worth surfacing explicitly, because they show how the API is designed to remain operable and explainable, not just functionally correct.
+
+| Concern / feature | Current approach | Why this approach fits this project | Trade-offs / limitations |
+|---|---|---|---|
+| Audit trail (documented design) | **AOP** around application/service operations | Centralizes repetitive audit capture, keeps service methods focused on domain logic, and makes it easier to add actor / action / before-after snapshots consistently | Can hide control flow, debugging is slightly less direct, and complex business-specific audit logic should not be pushed too far into aspects |
+| Observability / o11y | **Spring Boot Actuator + OTLP export to a local Grafana-based stack** | Exposes reviewer-visible operational endpoints and exports telemetry through standard OTLP endpoints, which keeps local verification simple and avoids vendor lock-in at the API boundary | Adds local setup overhead, requires extra containers, and the current scope focuses on traces/metrics export rather than a fully built-out observability platform |
+| Request correlation | **`X-Request-Id` propagation** in request/response/error flow | Makes troubleshooting easier even without full distributed tracing and gives a reviewer a concrete example of operational readiness | Simpler than full trace context propagation; by itself it does not replace end-to-end distributed tracing |
+
+### Why AOP for audit?
+- Good fit for repeated, operation-level audit hooks such as create order, patch order, delete order, and delete user.
+- Helps avoid scattering similar logging/audit code across controllers and services.
+- Best used for **technical audit capture** and consistent interception points; complex domain approval history should still be modeled explicitly in the domain/data layer when needed.
+
+### Why this o11y setup?
+- The application exposes operational endpoints through **Spring Boot Actuator**.
+- It exports telemetry using **OTLP**, including traces and metrics.
+- The local Grafana-based stack makes this easy for a reviewer to inspect without requiring external infrastructure.
+- This is intentionally stronger than plain application logging because it demonstrates a real observability integration path, while still staying lightweight for a coding assignment.
+
+## Example Requests (using seeded data)
+
+Seeded IDs come from `src/main/resources/sql/seed.sql`:
+- `USER_ID=52d3b753-b7d5-41a5-adf8-c967308aa9ba`
+- `PRODUCT_ID=321bca7a-7b1e-4064-be7a-557318a3e2eb`
+
+Get product:
+```bash
+curl -sS http://localhost:8080/api/v1/product/321bca7a-7b1e-4064-be7a-557318a3e2eb
+```
+
+Create order (expects unit price `0.0001`, tax rate `0.0003` from seed):
+```bash
+curl -sS -X POST http://localhost:8080/api/v1/order \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: demo-1' \
+  -d '{"userId":"52d3b753-b7d5-41a5-adf8-c967308aa9ba","productId":"321bca7a-7b1e-4064-be7a-557318a3e2eb","orderAmount":2,"expectedUnitPrice":0.0001,"expectedTaxRate":0.0003}'
+```
+
+List orders (paged):
+```bash
+curl -sS "http://localhost:8080/api/v1/order/52d3b753-b7d5-41a5-adf8-c967308aa9ba?page=1&size=20"
+```
+
+## How to Test
+```bash
+./gradlew test
+```
+
+## Configuration Notes
+- Datasource can be overridden with env vars:
+  - `SPRING_DATASOURCE_URL` (default `jdbc:postgresql://localhost:5432/order_management`)
+  - `SPRING_DATASOURCE_USERNAME` / `SPRING_DATASOURCE_PASSWORD` (default `postgres` / `postgres`)
+- Observability stack (optional) is included in `docker-compose.yaml` (`grafana/otel-lgtm`) and wired via `OBSERVABILITY_OTLP_BASE_URL` (default `http://localhost:4318`).
+- Spring Boot Actuator endpoints are exposed for local inspection: `health`, `info`, `metrics`, `prometheus`, `loggers`.
+- Tracing uses **W3C Trace Context** propagation.
+- OTLP export is configured for:
+  - metrics -> `${OBSERVABILITY_OTLP_BASE_URL}/v1/metrics`
+  - traces -> `${OBSERVABILITY_OTLP_BASE_URL}/v1/traces`
+
+## Local Observability URLs
+When you start `lgtm` via Docker Compose, you can inspect the local observability backend with:
+
+| Tool | URL | Purpose |
+|---|---|---|
+| Grafana | `http://localhost:3000` | Unified entry point for telemetry exploration |
+| OTLP gRPC ingest | `http://localhost:4317` | OTLP gRPC ingest endpoint |
+| OTLP HTTP ingest | `http://localhost:4318` | OTLP HTTP ingest endpoint used by the application |
+
+Recommended reviewer path:
+1. Open **Grafana** first.
+2. Trigger a few API requests locally.
+3. Use the generated `X-Request-Id` to correlate application behavior with traces and operational signals.
+
+This makes the observability setup feel like a reviewable engineering choice instead of a purely decorative dependency.
+
+## Architecture (Layering)
+
+All requests follow a strict flow:
+`Controller` → `Converter (to DTO)` → `Service` → `Storage` → `Mapper/Entity` → `Service` → `Converter (to DTO)` → `Controller` → `Converter (to response)` → `Response`
+
+### High-Level Architecture
+
+```text
++---------------------+          +---------------------+
+| Client / Reviewer   |          | Local o11y backend  |
+| curl / Swagger UI   |          | Grafana / OTLP      |
++----------+----------+          +----------+----------+
+           |                                ^
+           v                                |
++---------------------+                     |
+| Spring Boot API     |---------------------+
+| Controller layer    |   Actuator / OTLP export
+| Validation          |
+| Exception handling  |
++----------+----------+
+           |
+           v
++---------------------+
+| Application Layer   |
+| Order service       |
+| Product service     |
+| State machine       |
+| Calculator logic    |
++-----+-----------+---+
+      |           |
+      |           v
+      |   +------------------------------+
+      |   | Cross-cutting concerns       |
+      |   | - X-Request-Id correlation   |
+      |   | - Actuator endpoints         |
+      |   | - OTLP trace/metric export   |
+      |   +------------------------------+
+      |
+      v
++---------------------+
+| Storage / MyBatis   |
+| Repository layer    |
++----------+----------+
+           |
+           v
++---------------------+
+| PostgreSQL          |
+| users / products /  |
+| product_categories /|
+| orders              |
++---------------------+
+```
+
+### System Architecture
+```mermaid
+graph TD
+    Client[Client / Reviewer] --> Controller[Spring Boot REST API]
+    Controller --> Converter[Converter Layer]
+    Converter --> Service[Application Service Layer]
+    Service --> StateMachine[State Machine & Validation]
+    Service --> Calculator[Calculator Logic]
+    Service --> Storage[Storage Layer]
+    Storage --> DB[(PostgreSQL)]
+
+    Controller -. request context .-> Correlation[`X-Request-Id` propagation]
+    Controller -. actuator / metrics .-> Actuator[Spring Boot Actuator]
+    Actuator -. OTLP export .-> O11y[Local Grafana-based observability backend]
+    Service -. trace / metric signals .-> O11y
+```
+
+### Order Lifecycle (State Machine)
 ```mermaid
 stateDiagram-v2
     [*] --> DRAFT
@@ -58,44 +230,10 @@ stateDiagram-v2
     CANCELLED --> [*] : terminal
 ```
 
-## 6. Business Context & Design Decisions
-### Data Consistency & History
-- **Single Source of Truth**: The **Snapshot Pattern** ensures that even if a product's price or a category's tax rate changes in the future, historical orders remain immutable and accurate for accounting.
-- **Record Preservation**: We adopt **Soft Deletion** because in enterprise systems, business records (Users/Orders) are rarely hard-purged. They are preserved for auditability and downstream analysis.
-
-### Semantic Correctness
-- **Controlled Patch**: Only `orderAmount` is mutable. State transitions (e.g., approval) are guarded by a state machine to prevent illegal workflow jumps.
-- **Explicit Deletion**: Deleting a user triggers a cascade of soft-deletions for their orders, ensuring no orphaned active references remain in the execution plane.
-
-## 7. Design Concepts & Future Evolution (P2 & P3)
-
-### P2 — Documented Design Concepts
-The following features are designed but intentionally out of scope for the current implementation to focus on core stability.
-
-- **Change History & Audit Trail**: Implementation of an `OrderChangeHistory` table to track every state transition and field modification for compliance and auditability.
-- **Risk Visibility**: Introduction of a `RiskFlag` system to highlight orders requiring manual intervention (e.g., high-value orders or suspicious activity).
-- **Multi-Role Collaboration**: A robust permission model differentiating roles like *Buyer*, *Supplier*, and *System Operations* for controlled access.
-- **Event-Driven Notification Center**: Using a message broker (e.g., Kafka) to decouple order creation from various notification channels (Email, SMS, Push).
-- **Real-time Tax Integration**: An internal tax abstraction layer ready to integrate with third-party tax services for dynamic, regional tax rate adjustments.
-- **Scalable Category Strategy**: An advanced **Strategy Pattern** implementation for calculations that can evolve independently as product categories grow.
-- **Advanced Rate Limiting**: Distributed rate limiting using Redis and Bucket4j to enforce per-user usage quotas (e.g., 5,000 req/hr).
-- **Downstream Data Synchronization**: A scheduled or event-driven sync service to pass anonymized purchasing habit data to external analytics apps every 30 minutes.
-
-### P3 — Future Interview & Architecture Topics
-Prepared for deeper technical discussion during the interview process.
-
-- **Supplier Compliance Extension**: Integrating onboarding and compliance checks into the order submission workflow.
-- **Logistics & Shipment Integration**: Extending the order aggregate to handle fulfillment milestones and tracking.
-- **Soft Delete vs Hard Delete Rationale**: Deep dive into business record consistency, data privacy (GDPR), and audit requirements.
-- **Pagination Strategy Evolution**: Why we chose Offset-based pagination for v1 (to support random page access for accounting) and how to transition to Cursor-based (Seek Method) for performance at scale.
-- **Microservices Evolution**: Strategy for decomposing the monolith into event-driven microservices.
-- **Observability & SLO**: Implementing structured logging, distributed tracing (Zipkin/Jaeger), and operational metrics to ensure service reliability.
-
-## 8. API Compliance Details
-Strictly following the assignment requirements while applying RESTful best practices:
-- `GET /api/v1/product/{product_id}`: Retrieve active product details.
-- `POST /api/v1/order`: Create order aggregate (Returns **201 Created** with `id`).
-- `PATCH /api/v1/order/{order_id}`: Controlled update (only `orderAmount` mutable, returns recalculated order).
-- `DELETE /api/v1/order/{order_id}`: Soft delete order record.
-- `DELETE /api/v1/user/{userId}`: Delete User (Soft delete user and cascade soft-delete order references).
-- `GET /api/v1/order/{userId}`: Get Order by User (Paged, newest-first).
+## Future Improvements (Explicitly not implemented yet)
+- Enforce true request **idempotency** for `POST /api/v1/order` (header is part of the contract; dedup is TODO in service layer).
+- Add database migrations (e.g., Flyway/Liquibase) and automate schema/seed for local runs.
+- Tighten API docs UX (keep Swagger UI spec source aligned with the served OpenAPI endpoint).
+- Expand observability beyond the current baseline by adding more reviewer-visible operational signals, such as request latency, error rate, and order workflow metrics.
+- Add dashboards and monitoring views for core system behavior, such as API errors, slow requests, and order lifecycle transitions.
+- Strengthen correlation across logs, traces, and metrics so troubleshooting paths are more complete during local review and future production handoff.
