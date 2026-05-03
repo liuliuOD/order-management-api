@@ -75,11 +75,6 @@ management:
       export:
         url: ${observability.otlp.base-url}/v1/metrics
   opentelemetry:
-    logging:
-      export:
-        otlp:
-          enabled: false
-          endpoint: ${observability.otlp.base-url}/v1/logs
     tracing:
       export:
         otlp:

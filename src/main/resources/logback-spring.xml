@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Keep Spring Boot's default console logging (including structured console logging config). -->
+    <include resource="org/springframework/boot/logging/logback/base.xml" />
+
+    <!-- Publish application logs to the OpenTelemetry SDK (exported via OTLP when enabled). -->
+    <appender name="OTEL" class="io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender" />
+
+    <!-- Re-declare root so we keep CONSOLE and additionally publish to OTEL. -->
+    <springProperty scope="context" name="ROOT_LOG_LEVEL" source="logging.level.root" defaultValue="INFO" />
+    <root level="${ROOT_LOG_LEVEL}">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="OTEL" />
+    </root>
+</configuration>
