@@ -18,8 +18,14 @@ public class ElectronicOrderTotalCostCalculator implements OrderTotalCostCalcula
 
     @Override
     public BigDecimal calculate(Integer orderAmount, BigDecimal unitPriceSnapshot, BigDecimal taxRateSnapshot) {
-        if (orderAmount == null || unitPriceSnapshot == null || taxRateSnapshot == null) {
-            return BigDecimal.ZERO;
+        if (orderAmount == null) {
+            throw new IllegalArgumentException("orderAmount is required");
+        }
+        if (unitPriceSnapshot == null) {
+            throw new IllegalArgumentException("unitPriceSnapshot is required");
+        }
+        if (taxRateSnapshot == null) {
+            throw new IllegalArgumentException("taxRateSnapshot is required");
         }
 
         BigDecimal amount = BigDecimal.valueOf(orderAmount);
@@ -32,6 +38,6 @@ public class ElectronicOrderTotalCostCalculator implements OrderTotalCostCalcula
 
     @Override
     public boolean supports(CalculationType targetType) {
-        return calculationType.equals(targetType) || targetType == null;
+        return calculationType.equals(targetType);
     }
 }

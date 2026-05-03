@@ -27,8 +27,8 @@ public final class AuditContextHolder {
         return get(AuditContextKey.TARGET_ID.getKey());
     }
 
-    public static void setTargetId(String traceId) {
-        put(AuditContextKey.TARGET_ID.getKey(), traceId);
+    public static void setTargetId(String targetId) {
+        put(AuditContextKey.TARGET_ID.getKey(), targetId);
     }
 
     public static Object getBeforeSnapshot() {
